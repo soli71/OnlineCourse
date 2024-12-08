@@ -1,0 +1,6 @@
+@MortezaApp_HostAddress = http://localhost:5105
+
+GET {{MortezaApp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
