@@ -7,16 +7,18 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using MortezaApp.Contexts;
+using OnlineCourse.Contexts;
 using OnlineCourse.Entities;
+using OnlineCourse.Models;
 using OnlineCourse.Services;
+using QRCoder;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 
-namespace OnlineCourse.Models;
+namespace OnlineCourse;
 
 public static partial class IdentityApiEndpointRouteBuilderExtensions
 {
@@ -47,8 +49,8 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup("account");
 
-        routeGroup.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
-           ([FromBody] RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
+        routeGroup.MapPost("site/register", async Task<Results<Ok, ValidationProblem>>
+           ([FromBody] Models.RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var smsService = sp.GetRequiredService<ISmsService>();
@@ -69,6 +71,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             var user = new TUser();
             await userStore.SetUserNameAsync(user, phoneNumber, CancellationToken.None);
             user.PhoneNumber = phoneNumber;
+            user.Type = UserType.Site;
             var result = await userManager.CreateAsync(user, registration.Password);
 
             if (!result.Succeeded)
@@ -80,14 +83,23 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Ok();
         });
 
-        routeGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
+        routeGroup.MapPost("site/login", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
             ([FromBody] LoginRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.Users.FirstOrDefaultAsync(c => c.UserName == login.PhoneNumber);
+            if (user is null)
+            {
+                return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
+            }
+            if (user.Type != UserType.Site)
+            {
+                return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
+            }
 
             signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
             var result = await signInManager.PasswordSignInAsync(login.PhoneNumber, login.Password, true, lockoutOnFailure: true);
-
             if (result.IsNotAllowed)
             {
                 return TypedResults.Problem("لطفا موبایل خود را تایید نمایید", statusCode: StatusCodes.Status405MethodNotAllowed);
@@ -113,9 +125,9 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 UserName = user,
             });
-        });
+        }).RequireAuthorization();
 
-        routeGroup.MapPost("/refresh", async Task<Results<Ok<AccessTokenResponse>, UnauthorizedHttpResult, SignInHttpResult, ChallengeHttpResult>>
+        routeGroup.MapPost("site/refresh", async Task<Results<Ok<AccessTokenResponse>, UnauthorizedHttpResult, SignInHttpResult, ChallengeHttpResult>>
             ([FromBody] RefreshRequest refreshRequest, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
@@ -135,7 +147,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(newPrincipal, authenticationScheme: IdentityConstants.BearerScheme);
         });
 
-        routeGroup.MapPost("/confirm-phone-number", async Task<Results<ContentHttpResult, UnauthorizedHttpResult>>
+        routeGroup.MapPost("site/confirm-phone-number", async Task<Results<ContentHttpResult, UnauthorizedHttpResult>>
             ([FromBody] ConfirmPhoneNumberRequest request, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
@@ -168,13 +180,13 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Text("Thank you for confirming your phone number.");
         });
 
-        routeGroup.MapGet("/phone/send-verification-code", async Task<Results<Ok<SendVerificationCodeResponse>, NotFound, Ok>>
+        routeGroup.MapGet("site/phone/send-verification-code", async Task<Results<Ok<SendVerificationCodeResponse>, NotFound, Ok>>
             ([FromQuery] string phoneNumber, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(phoneNumber);
 
-            if (user is not null && await userManager.IsPhoneNumberConfirmedAsync(user))
+            if (user is not null && !await userManager.IsPhoneNumberConfirmedAsync(user))
             {
                 var memoryCache = sp.GetRequiredService<IMemoryCache>();
 
@@ -183,16 +195,16 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 {
                     if (getVerificationCode.ExpireTime > DateTime.UtcNow)
                     {
-                        return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = (int)(getVerificationCode.ExpireTime - DateTime.UtcNow).TotalSeconds });
+                        return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = (int)(getVerificationCode.ExpireTime - DateTime.UtcNow).TotalSeconds, CodeLength = getVerificationCode.VerificationCode.Length });
                     }
                 }
                 string code = GenerateVerificationCode();
 
-                memoryCache.Set($"{user.Id}-VerificationCode", new VerificationStoreModel { PhoneNumber = user.PhoneNumber, VerificationCode = code, ExpireTime = DateTime.UtcNow.AddSeconds(120) }, TimeSpan.FromSeconds(120));
-                // Send the verification code to the user
-                // ...
+                var smsService = sp.GetRequiredService<ISmsService>();
 
-                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120 });
+                await SendConfirmationMobileAsync(user, userManager, smsService, phoneNumber, memoryCache);
+
+                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
             }
             else
             {
@@ -200,8 +212,8 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             }
         });
 
-        routeGroup.MapPost("/forgotPassword", async Task<Results<Ok<SendVerificationCodeResponse>, ValidationProblem>>
-            ([FromBody] ForgotPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
+        routeGroup.MapPost("site/forgotPassword", async Task<Results<Ok<SendVerificationCodeResponse>, ValidationProblem>>
+            ([FromBody] Models.ForgotPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(resetRequest.PhoneNumber);
@@ -223,15 +235,19 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 var token = await userManager.GeneratePasswordResetTokenAsync(user);
                 token = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
                 memoryCache.Set($"{user.Id}-forgetPassword", new VerificationStoreModel { PhoneNumber = user.PhoneNumber, VerificationCode = code, Token = token, ExpireTime = DateTime.UtcNow.AddSeconds(120) }, TimeSpan.FromMinutes(2));
-                // Send the verification code to the user
-                // ...
-                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120 });
+
+                if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+                {
+                    var smsService = sp.GetRequiredService<ISmsService>();
+                    await smsService.SendAsync(user.PhoneNumber, $"کد تایید شما : {code}\r\nای آی چت");
+                }
+                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
             }
             return CreateValidationProblem("InvalidPhoneNumber", "The phone number provided does not match any user in the system.");
         });
 
-        routeGroup.MapPost("/resetPassword", async Task<Results<Ok, ValidationProblem>>
-            ([FromBody] ResetPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
+        routeGroup.MapPost("site/resetPassword", async Task<Results<Ok, ValidationProblem>>
+            ([FromBody] Models.ResetPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
 
@@ -275,83 +291,9 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Ok();
         });
 
-        var accountGroup = routeGroup.MapGroup("/manage").RequireAuthorization();
+        var accountGroup = routeGroup.MapGroup("site/manage").RequireAuthorization();
 
-        accountGroup.MapPost("/2fa", async Task<Results<Ok<TwoFactorResponse>, ValidationProblem, NotFound>>
-            (ClaimsPrincipal claimsPrincipal, [FromBody] TwoFactorRequest tfaRequest, [FromServices] IServiceProvider sp) =>
-        {
-            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
-            var userManager = signInManager.UserManager;
-            if (await userManager.GetUserAsync(claimsPrincipal) is not { } user)
-            {
-                return TypedResults.NotFound();
-            }
-
-            if (tfaRequest.Enable == true)
-            {
-                if (tfaRequest.ResetSharedKey)
-                {
-                    return CreateValidationProblem("CannotResetSharedKeyAndEnable",
-                        "Resetting the 2fa shared key must disable 2fa until a 2fa token based on the new shared key is validated.");
-                }
-                else if (string.IsNullOrEmpty(tfaRequest.TwoFactorCode))
-                {
-                    return CreateValidationProblem("RequiresTwoFactor",
-                        "No 2fa token was provided by the request. A valid 2fa token is required to enable 2fa.");
-                }
-                else if (!await userManager.VerifyTwoFactorTokenAsync(user, userManager.Options.Tokens.AuthenticatorTokenProvider, tfaRequest.TwoFactorCode))
-                {
-                    return CreateValidationProblem("InvalidTwoFactorCode",
-                        "The 2fa token provided by the request was invalid. A valid 2fa token is required to enable 2fa.");
-                }
-
-                await userManager.SetTwoFactorEnabledAsync(user, true);
-            }
-            else if (tfaRequest.Enable == false || tfaRequest.ResetSharedKey)
-            {
-                await userManager.SetTwoFactorEnabledAsync(user, false);
-            }
-
-            if (tfaRequest.ResetSharedKey)
-            {
-                await userManager.ResetAuthenticatorKeyAsync(user);
-            }
-
-            string[] recoveryCodes = null;
-            if (tfaRequest.ResetRecoveryCodes || tfaRequest.Enable == true && await userManager.CountRecoveryCodesAsync(user) == 0)
-            {
-                var recoveryCodesEnumerable = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
-                recoveryCodes = recoveryCodesEnumerable?.ToArray();
-            }
-
-            if (tfaRequest.ForgetMachine)
-            {
-                await signInManager.ForgetTwoFactorClientAsync();
-            }
-
-            var key = await userManager.GetAuthenticatorKeyAsync(user);
-            if (string.IsNullOrEmpty(key))
-            {
-                await userManager.ResetAuthenticatorKeyAsync(user);
-                key = await userManager.GetAuthenticatorKeyAsync(user);
-
-                if (string.IsNullOrEmpty(key))
-                {
-                    throw new NotSupportedException("The user manager must produce an authenticator key after reset.");
-                }
-            }
-
-            return TypedResults.Ok(new TwoFactorResponse
-            {
-                SharedKey = key,
-                RecoveryCodes = recoveryCodes,
-                RecoveryCodesLeft = recoveryCodes?.Length ?? await userManager.CountRecoveryCodesAsync(user),
-                IsTwoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(user),
-                IsMachineRemembered = await signInManager.IsTwoFactorClientRememberedAsync(user),
-            });
-        });
-
-        accountGroup.MapGet("/info", async Task<Results<Ok<InfoResponse>, ValidationProblem, NotFound>>
+        accountGroup.MapGet("site/info", async Task<Results<Ok<Models.InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
@@ -363,7 +305,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
         });
 
-        accountGroup.MapPost("/info", async Task<Results<Ok<InfoResponse>, ValidationProblem, NotFound>>
+        accountGroup.MapPost("site/info", async Task<Results<Ok<Models.InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromBody] InfoRequest infoRequest, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
@@ -392,17 +334,39 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 }
             }
 
-            if (!string.IsNullOrEmpty(infoRequest.NewEmail))
-            {
-                var email = await userManager.GetEmailAsync(user);
+            return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
+        });
 
-                if (email != infoRequest.NewEmail)
-                {
-                    await SendConfirmationEmailAsync(user, userManager, context, infoRequest.NewEmail, isChange: true);
-                }
+        var panelGroup = routeGroup.MapGroup("/panel");
+
+        panelGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
+         ([FromBody] LoginRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
+        {
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.Users.FirstOrDefaultAsync(c => c.UserName == login.PhoneNumber);
+            if (user is null)
+            {
+                return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
+            }
+            if (user.Type != UserType.Admin)
+            {
+                return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
             }
 
-            return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
+            signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
+            var result = await signInManager.PasswordSignInAsync(login.PhoneNumber, login.Password, true, lockoutOnFailure: true);
+            if (result.IsNotAllowed)
+            {
+                return TypedResults.Problem("لطفا موبایل خود را تایید نمایید", statusCode: StatusCodes.Status405MethodNotAllowed);
+            }
+            if (!result.Succeeded)
+            {
+                return TypedResults.Problem(result.ToString(), statusCode: StatusCodes.Status401Unauthorized);
+            }
+
+            // The signInManager already produced the needed response in the form of a cookie or bearer token.
+            return TypedResults.Empty;
         });
 
         async Task SendConfirmationMobileAsync(TUser user, UserManager<TUser> userManager, ISmsService smsService, string mobile, IMemoryCache memoryCache, bool isChange = false)
@@ -415,41 +379,114 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 return;
             }
-            await smsService.SendAsync(mobile, $"کد تایید شما : {code}\r\nای آی چت");
+            await smsService.SendAsync(mobile, $"کد تایید شما : {code}");
         }
 
-        async Task SendConfirmationEmailAsync(TUser user, UserManager<TUser> userManager, HttpContext context, string email, bool isChange = false)
+        panelGroup.MapPost("/forgotPassword", async Task<Results<Ok<SendVerificationCodeResponse>, ValidationProblem>>
+          ([FromBody] Models.ForgotPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
         {
-            if (confirmEmailEndpointName is null)
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.FindByNameAsync(resetRequest.PhoneNumber);
+
+            if (user.Type != UserType.Admin)
             {
-                throw new NotSupportedException("No email confirmation endpoint was registered!");
+                return CreateValidationProblem("InvalidPhoneNumber", "The phone number provided does not match any user in the system.");
+            }
+            if (user is not null && await userManager.IsPhoneNumberConfirmedAsync(user))
+            {
+                var memoryCache = sp.GetRequiredService<IMemoryCache>();
+
+                var getVerificationCode = memoryCache.Get<VerificationStoreModel>($"{user.Id}-forgetPassword");
+                if (getVerificationCode != null)
+                {
+                    if (getVerificationCode.ExpireTime > DateTime.UtcNow)
+                    {
+                        return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = (int)(getVerificationCode.ExpireTime - DateTime.UtcNow).TotalSeconds });
+                    }
+                }
+
+                string code = GenerateVerificationCode();
+                var token = await userManager.GeneratePasswordResetTokenAsync(user);
+                token = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+                memoryCache.Set($"{user.Id}-forgetPassword", new VerificationStoreModel { PhoneNumber = user.PhoneNumber, VerificationCode = code, Token = token, ExpireTime = DateTime.UtcNow.AddSeconds(120) }, TimeSpan.FromMinutes(2));
+
+                if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+                {
+                    var smsService = sp.GetRequiredService<ISmsService>();
+                    await smsService.SendAsync(user.PhoneNumber, $"کد تایید شما : {code}");
+                }
+                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
+            }
+            return CreateValidationProblem("InvalidPhoneNumber", "The phone number provided does not match any user in the system.");
+        });
+
+        panelGroup.MapPost("/resetPassword", async Task<Results<Ok, ValidationProblem>>
+            ([FromBody] Models.ResetPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+
+            var user = await userManager.FindByNameAsync(resetRequest.PhoneNumber);
+
+            if (user.Type != UserType.Admin)
+            {
+                return CreateValidationProblem("InvalidPhoneNumber", "The phone number provided does not match any user in the system.");
+            }
+            if (user is null || !await userManager.IsPhoneNumberConfirmedAsync(user))
+            {
+                // Don't reveal that the user does not exist or is not confirmed, so don't return a 200 if we would have
+                // returned a 400 for an invalid code given a valid user email.
+                return CreateValidationProblem(IdentityResult.Failed(userManager.ErrorDescriber.InvalidToken()));
             }
 
-            var code = isChange
-                ? await userManager.GenerateChangeEmailTokenAsync(user, email)
-                : await userManager.GenerateEmailConfirmationTokenAsync(user);
-            code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-
-            var userId = await userManager.GetUserIdAsync(user);
-            var routeValues = new RouteValueDictionary()
+            IdentityResult result;
+            try
             {
-                ["userId"] = userId,
-                ["code"] = code,
-            };
+                sp.GetRequiredService<IMemoryCache>().TryGetValue($"{user.Id}-forgetPassword", out VerificationStoreModel verificationStoreModel);
 
-            if (isChange)
+                if (verificationStoreModel == null || verificationStoreModel.VerificationCode != resetRequest.ResetCode || verificationStoreModel.PhoneNumber != resetRequest.PhoneNumber)
+                {
+                    return CreateValidationProblem(IdentityResult.Failed(userManager.ErrorDescriber.InvalidToken()));
+                }
+                var code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(verificationStoreModel.Token));
+                result = await userManager.ResetPasswordAsync(user, code, resetRequest.NewPassword);
+
+                if (result.Succeeded)
+                {
+                    // Clear the verification code from memory cache
+                    sp.GetRequiredService<IMemoryCache>().Remove($"{user.Id}-forgetPassword");
+                }
+            }
+            catch (FormatException)
             {
-                // This is validated by the /confirmEmail endpoint on change.
-                routeValues.Add("changedEmail", email);
+                result = IdentityResult.Failed(userManager.ErrorDescriber.InvalidToken());
             }
 
-            var confirmEmailUrl = linkGenerator.GetUriByName(context, confirmEmailEndpointName, routeValues)
-                ?? throw new NotSupportedException($"Could not find endpoint named '{confirmEmailEndpointName}'.");
+            if (!result.Succeeded)
+            {
+                return CreateValidationProblem(result);
+            }
 
-            await emailSender.SendConfirmationLinkAsync(user, email, HtmlEncoder.Default.Encode(confirmEmailUrl));
-        }
+            return TypedResults.Ok();
+        });
 
         return new IdentityEndpointsConventionBuilder(routeGroup);
+    }
+
+    private static string GenerateQrCodeUri(string email, string key)
+    {
+        var issuer = "AiChat"; // Replace with your app's name
+        var encodedEmail = Uri.EscapeDataString(email);
+        var encodedIssuer = Uri.EscapeDataString(issuer);
+        var encodedKey = Uri.EscapeDataString(key);
+
+        var otpauthUri = $"otpauth://totp/{encodedIssuer}:{encodedEmail}?secret={encodedKey}&issuer={encodedIssuer}&digits=6";
+
+        using var qrGenerator = new QRCodeGenerator();
+        var qrCodeData = qrGenerator.CreateQrCode(otpauthUri, QRCodeGenerator.ECCLevel.Q);
+        Base64QRCode qrCode = new Base64QRCode(qrCodeData);
+        string qrCodeImageAsBase64 = qrCode.GetGraphic(20);
+
+        return $"data:image/png;base64,{qrCodeImageAsBase64}";
     }
 
     private static string GenerateVerificationCode()
@@ -500,10 +537,10 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         return TypedResults.ValidationProblem(errorDictionary);
     }
 
-    private static async Task<InfoResponse> CreateInfoResponseAsync<TUser>(TUser user, UserManager<TUser> userManager)
+    private static async Task<Models.InfoResponse> CreateInfoResponseAsync<TUser>(TUser user, UserManager<TUser> userManager)
         where TUser : User
     {
-        return new InfoResponse()
+        return new OnlineCourse.Models.InfoResponse()
         {
             Email = await userManager.GetEmailAsync(user),
             Mobile = user.Mobile,

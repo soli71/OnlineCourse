@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.BearerToken;
-using Microsoft.AspNetCore.DataProtection;
+﻿using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Identity;
@@ -9,43 +7,15 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using OnlineCourse.Contexts;
 using OnlineCourse.Entities;
-using OnlineCourse.Models;
 using OnlineCourse.Services;
-using QRCoder;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 
-namespace OnlineCourse;
-
-public sealed class CustomBearerTokenOption(IDataProtectionProvider dp) : IConfigureNamedOptions<BearerTokenOptions>
-{
-    private const string _primaryPurpose = "Microsoft.AspNetCore.Authentication.BearerToken";
-
-    public void Configure(string schemeName, BearerTokenOptions options)
-    {
-        if (schemeName is null)
-        {
-            return;
-        }
-
-        var expirationTime = int.Parse(Environment.GetEnvironmentVariable("ExpireTokenTime"));
-        var refreshExpirationTime = int.Parse(Environment.GetEnvironmentVariable("RefreshExpireTokenTime"));
-        options.BearerTokenProtector = new TicketDataFormat(dp.CreateProtector(_primaryPurpose, schemeName, "BearerToken"));
-        options.RefreshTokenProtector = new TicketDataFormat(dp.CreateProtector(_primaryPurpose, schemeName, "RefreshToken"));
-        options.BearerTokenExpiration = TimeSpan.FromSeconds(expirationTime);
-        options.RefreshTokenExpiration = TimeSpan.FromSeconds(refreshExpirationTime);
-    }
-
-    public void Configure(BearerTokenOptions options)
-    {
-        throw new NotImplementedException();
-    }
-}
+namespace OnlineCourse.Models;
 
 public static partial class IdentityApiEndpointRouteBuilderExtensions
 {
@@ -77,7 +47,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         var routeGroup = endpoints.MapGroup("account");
 
         routeGroup.MapPost("/register", async Task<Results<Ok, ValidationProblem>>
-           ([FromBody] Models.RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
+           ([FromBody] RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var smsService = sp.GetRequiredService<ISmsService>();
@@ -116,30 +86,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
 
             signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
             var result = await signInManager.PasswordSignInAsync(login.PhoneNumber, login.Password, true, lockoutOnFailure: true);
-            if (result.IsNotAllowed)
-            {
-                return TypedResults.Problem("لطفا موبایل خود را تایید نمایید", statusCode: StatusCodes.Status405MethodNotAllowed);
-            }
-            if (!result.Succeeded)
-            {
-                return TypedResults.Problem(result.ToString(), statusCode: StatusCodes.Status401Unauthorized);
-            }
 
-            // The signInManager already produced the needed response in the form of a cookie or bearer token.
-            return TypedResults.Empty;
-        });
-
-        routeGroup.MapPost("/2fa", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
-          ([FromBody] Login2fa login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
-        {
-            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
-            var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
-            if (user == null)
-            {
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
-            }
-            signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
-            var result = await signInManager.TwoFactorAuthenticatorSignInAsync(login.VerificationCode, false, false);
             if (result.IsNotAllowed)
             {
                 return TypedResults.Problem("لطفا موبایل خود را تایید نمایید", statusCode: StatusCodes.Status405MethodNotAllowed);
@@ -165,7 +112,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 UserName = user,
             });
-        }).RequireAuthorization();
+        });
 
         routeGroup.MapPost("/refresh", async Task<Results<Ok<AccessTokenResponse>, UnauthorizedHttpResult, SignInHttpResult, ChallengeHttpResult>>
             ([FromBody] RefreshRequest refreshRequest, [FromServices] IServiceProvider sp) =>
@@ -226,7 +173,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(phoneNumber);
 
-            if (user is not null && !await userManager.IsPhoneNumberConfirmedAsync(user))
+            if (user is not null && await userManager.IsPhoneNumberConfirmedAsync(user))
             {
                 var memoryCache = sp.GetRequiredService<IMemoryCache>();
 
@@ -235,16 +182,16 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 {
                     if (getVerificationCode.ExpireTime > DateTime.UtcNow)
                     {
-                        return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = (int)(getVerificationCode.ExpireTime - DateTime.UtcNow).TotalSeconds, CodeLength = getVerificationCode.VerificationCode.Length });
+                        return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = (int)(getVerificationCode.ExpireTime - DateTime.UtcNow).TotalSeconds });
                     }
                 }
                 string code = GenerateVerificationCode();
 
-                var smsService = sp.GetRequiredService<ISmsService>();
+                memoryCache.Set($"{user.Id}-VerificationCode", new VerificationStoreModel { PhoneNumber = user.PhoneNumber, VerificationCode = code, ExpireTime = DateTime.UtcNow.AddSeconds(120) }, TimeSpan.FromSeconds(120));
+                // Send the verification code to the user
+                // ...
 
-                await SendConfirmationMobileAsync(user, userManager, smsService, phoneNumber, memoryCache);
-
-                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
+                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120 });
             }
             else
             {
@@ -253,7 +200,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         });
 
         routeGroup.MapPost("/forgotPassword", async Task<Results<Ok<SendVerificationCodeResponse>, ValidationProblem>>
-            ([FromBody] Models.ForgotPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
+            ([FromBody] ForgotPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(resetRequest.PhoneNumber);
@@ -275,19 +222,15 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 var token = await userManager.GeneratePasswordResetTokenAsync(user);
                 token = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
                 memoryCache.Set($"{user.Id}-forgetPassword", new VerificationStoreModel { PhoneNumber = user.PhoneNumber, VerificationCode = code, Token = token, ExpireTime = DateTime.UtcNow.AddSeconds(120) }, TimeSpan.FromMinutes(2));
-
-                if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
-                {
-                    var smsService = sp.GetRequiredService<ISmsService>();
-                    await smsService.SendAsync(user.PhoneNumber, $"کد تایید شما : {code}\r\nای آی چت");
-                }
-                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
+                // Send the verification code to the user
+                // ...
+                return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120 });
             }
             return CreateValidationProblem("InvalidPhoneNumber", "The phone number provided does not match any user in the system.");
         });
 
         routeGroup.MapPost("/resetPassword", async Task<Results<Ok, ValidationProblem>>
-            ([FromBody] Models.ResetPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
+            ([FromBody] ResetPasswordRequest resetRequest, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
 
@@ -337,18 +280,12 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             (ClaimsPrincipal claimsPrincipal, [FromBody] TwoFactorRequest tfaRequest, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
-
             var userManager = signInManager.UserManager;
             if (await userManager.GetUserAsync(claimsPrincipal) is not { } user)
             {
                 return TypedResults.NotFound();
             }
 
-            var context = sp.GetRequiredService<ApplicationDbContext>();
-            if (!await context.UserTokens.AnyAsync(c => c.Name == "AuthenticatorKey" && c.UserId == user.Id))
-            {
-                return CreateValidationProblem("2FANOTCONFIGURED", "please first configure youre two authenticator app");
-            }
             if (tfaRequest.Enable == true)
             {
                 if (tfaRequest.ResetSharedKey)
@@ -413,7 +350,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             });
         });
 
-        accountGroup.MapGet("/info", async Task<Results<Ok<Models.InfoResponse>, ValidationProblem, NotFound>>
+        accountGroup.MapGet("/info", async Task<Results<Ok<InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
@@ -425,7 +362,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
         });
 
-        accountGroup.MapPost("/info", async Task<Results<Ok<Models.InfoResponse>, ValidationProblem, NotFound>>
+        accountGroup.MapPost("/info", async Task<Results<Ok<InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromBody] InfoRequest infoRequest, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
@@ -465,46 +402,6 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             }
 
             return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
-        });
-
-        accountGroup.MapGet("/2fa", async Task<Results<Ok<TwoFaInfo>, Ok, NotFound>>
-          (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
-        {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.GetUserAsync(claimsPrincipal);
-            if (user is null)
-                return TypedResults.NotFound();
-            return TypedResults.Ok(new TwoFaInfo
-            {
-                Enable = user.TwoFactorEnabled
-            });
-        });
-
-        accountGroup.MapGet("/2fa-setup", async Task<Results<Ok<AuthenticatorSetupModel>, NotFound>>
-            (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
-        {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-
-            var user = await userManager.GetUserAsync(claimsPrincipal);
-            if (user == null)
-            {
-                return TypedResults.NotFound();
-            }
-
-            var key = await userManager.GetAuthenticatorKeyAsync(user);
-            if (string.IsNullOrEmpty(key))
-            {
-                await userManager.ResetAuthenticatorKeyAsync(user);
-                key = await userManager.GetAuthenticatorKeyAsync(user);
-            }
-
-            var model = new AuthenticatorSetupModel
-            {
-                SharedKey = key,
-                QrCode = GenerateQrCodeUri(user.PhoneNumber, key)
-            };
-
-            return TypedResults.Ok(model);
         });
 
         async Task SendConfirmationMobileAsync(TUser user, UserManager<TUser> userManager, ISmsService smsService, string mobile, IMemoryCache memoryCache, bool isChange = false)
@@ -552,23 +449,6 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         }
 
         return new IdentityEndpointsConventionBuilder(routeGroup);
-    }
-
-    private static string GenerateQrCodeUri(string email, string key)
-    {
-        var issuer = "AiChat"; // Replace with your app's name
-        var encodedEmail = Uri.EscapeDataString(email);
-        var encodedIssuer = Uri.EscapeDataString(issuer);
-        var encodedKey = Uri.EscapeDataString(key);
-
-        var otpauthUri = $"otpauth://totp/{encodedIssuer}:{encodedEmail}?secret={encodedKey}&issuer={encodedIssuer}&digits=6";
-
-        using var qrGenerator = new QRCodeGenerator();
-        var qrCodeData = qrGenerator.CreateQrCode(otpauthUri, QRCodeGenerator.ECCLevel.Q);
-        Base64QRCode qrCode = new Base64QRCode(qrCodeData);
-        string qrCodeImageAsBase64 = qrCode.GetGraphic(20);
-
-        return $"data:image/png;base64,{qrCodeImageAsBase64}";
     }
 
     private static string GenerateVerificationCode()
@@ -619,10 +499,10 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         return TypedResults.ValidationProblem(errorDictionary);
     }
 
-    private static async Task<Models.InfoResponse> CreateInfoResponseAsync<TUser>(TUser user, UserManager<TUser> userManager)
+    private static async Task<InfoResponse> CreateInfoResponseAsync<TUser>(TUser user, UserManager<TUser> userManager)
         where TUser : User
     {
-        return new MortezaApp.Models.InfoResponse()
+        return new InfoResponse()
         {
             Email = await userManager.GetEmailAsync(user),
             Mobile = user.Mobile,
