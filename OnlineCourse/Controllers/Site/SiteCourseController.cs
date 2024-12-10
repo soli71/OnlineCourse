@@ -1,13 +1,15 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Minio;
 using OnlineCourse.Contexts;
+using OnlineCourse.Entities;
 using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Site;
 public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime);
 
-public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime);
+public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video);
 
 [Route("api/site/[controller]")]
 [ApiController]
@@ -15,6 +17,7 @@ public class SiteCourseController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IMinioService _minioService;
+
     public SiteCourseController(ApplicationDbContext context, IMinioService minioService)
     {
         _context = context;
@@ -54,14 +57,35 @@ public class SiteCourseController : ControllerBase
 
         var imageUrl = await _minioService.GetFileUrlAsync("course", course.ImageFileName);
 
+        string video = null;
+        if (!string.IsNullOrEmpty(course.PreviewVideoName))
+        {
+            video = await _minioService.GetFileUrlAsync("course", course.PreviewVideoName);
+        }
+
         var courseDto = new GetSiteCourseDto(
             course.Id,
             course.Name,
             course.Description,
             course.Price,
-           imageUrl,
-            course.DurationTime
+            imageUrl,
+            course.DurationTime,
+            video
         );
         return courseDto;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> CheckCourseCapacity(int courseId)
+    {
+        var course = await _context.Courses.FindAsync(courseId);
+        if (course is null)
+        {
+            return false;
+        }
+        var totalCourseOrder = await _context.OrderDetails
+              .Where(x => x.CourseId == courseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(30) < DateTime.UtcNow)))
+              .CountAsync();
+        return totalCourseOrder < course.Limit;
     }
 }

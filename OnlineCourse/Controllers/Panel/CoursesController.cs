@@ -3,12 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Entities;
 using OnlineCourse.Services;
+using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Controllers.Panel;
 
 public record GetAllCoursesDto(int Id, string Name, decimal Price, int DurationTime);
 
-public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime,string SpotPlayerCourseId);
+public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string SpotPlayerCourseId, string PreviewVideo, byte Limit);
 
 public record CourseUpdateDto
 {
@@ -16,9 +17,10 @@ public record CourseUpdateDto
     public string Description { get; init; }
     public decimal Price { get; init; }
     public IFormFile Image { get; init; }
+    public IFormFile PreviewVideo { get; init; }
     public int DurationTime { get; init; }
-    public string SpotPlayerCourseId { get; set; }
-
+    public string SpotPlayerCourseId { get; init; }
+    public byte Limit { get; init; }
 }
 
 public record CourseCreateDto
@@ -26,9 +28,13 @@ public record CourseCreateDto
     public string Name { get; init; }
     public string Description { get; init; }
     public decimal Price { get; init; }
+
+    [Required]
     public IFormFile Image { get; init; }
-    public int DurationTime { get; set; }
-    public string SpotPlayerCourseId { get; set; }
+    public IFormFile PreviewVideo { get; init; }
+    public int DurationTime { get; init; }
+    public string SpotPlayerCourseId { get; init; }
+    public byte Limit { get; init; }
 }
 
 [Route("api/panel/[controller]")]
@@ -37,6 +43,7 @@ public class CoursesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IMinioService _minioService;
+
     public CoursesController(ApplicationDbContext context, IMinioService minioService)
     {
         _context = context;
@@ -65,8 +72,18 @@ public class CoursesController : ControllerBase
         {
             return NotFound();
         }
-        var image=await _minioService.GetFileUrlAsync("course", course.ImageFileName);
 
+        string image = null;
+        string video = null;
+
+        if (!string.IsNullOrEmpty(course.ImageFileName))
+        {
+            image = await _minioService.GetFileUrlAsync("course", course.ImageFileName);
+        }
+        if (!string.IsNullOrEmpty(image))
+        {
+            video = await _minioService.GetFileUrlAsync("course", course.PreviewVideoName);
+        }
         return new GetCourseDto(
             course.Id,
             course.Name,
@@ -74,7 +91,9 @@ public class CoursesController : ControllerBase
             course.Price,
             image,
             course.DurationTime,
-            course.SpotPlayerCourseId
+            course.SpotPlayerCourseId,
+            video,
+            course.Limit
         );
     }
 
@@ -92,6 +111,8 @@ public class CoursesController : ControllerBase
         course.Description = courseUpdateDto.Description;
         course.Price = courseUpdateDto.Price;
         course.SpotPlayerCourseId = courseUpdateDto.SpotPlayerCourseId;
+        course.DurationTime = courseUpdateDto.DurationTime;
+        course.Limit = courseUpdateDto.Limit;
         if (courseUpdateDto.Image != null)
         {
             await _minioService.DeleteFileAsync("course", course.ImageFileName);
@@ -106,16 +127,30 @@ public class CoursesController : ControllerBase
 
             var bucketName = "course";
 
-            await _minioService.UploadFileAsync(bucketName, imageFileName, tempFilePath);
-
+            await _minioService.UploadFileAsync(bucketName, imageFileName, tempFilePath, courseUpdateDto.Image.ContentType);
 
             course.ImageFileName = imageFileName;
         }
 
+        if (courseUpdateDto.PreviewVideo != null)
+        {
+            await _minioService.DeleteFileAsync("course", course.PreviewVideoName);
+            // Use a unique file name for the new video
+            var videoName = $"{Guid.NewGuid()}_{Path.GetFileName(courseUpdateDto.PreviewVideo.FileName)}";
+            string tempVideoFilePath = Path.Combine(Path.GetTempPath(), videoName);
+            using (var stream = new FileStream(videoName, FileMode.Create))
+            {
+                await courseUpdateDto.PreviewVideo.CopyToAsync(stream);
+            }
+            var bucketName = "course";
+            await _minioService.UploadFileAsync(bucketName, videoName, tempVideoFilePath, courseUpdateDto.PreviewVideo.ContentType);
+            course.PreviewVideoName = videoName;
+        }
         await _context.SaveChangesAsync();
 
         return NoContent();
     }
+
     // POST: api/panel/Courses
     [HttpPost]
     public async Task<ActionResult<Course>> PostCourse([FromForm] CourseCreateDto courseCreateDto)
@@ -124,7 +159,6 @@ public class CoursesController : ControllerBase
         {
             return BadRequest("Course already exists");
         }
-
 
         var imageFileName = $"{Guid.NewGuid()}_{Path.GetFileName(courseCreateDto.Image.FileName)}";
 
@@ -136,24 +170,41 @@ public class CoursesController : ControllerBase
 
         var bucketName = "course";
 
-        await _minioService.UploadFileAsync(bucketName, imageFileName, tempFilePath);
+        await _minioService.UploadFileAsync(bucketName, imageFileName, tempFilePath, courseCreateDto.Image.ContentType);
 
-
-        // Create the course entity
         var course = new Course
         {
             Name = courseCreateDto.Name,
             Description = courseCreateDto.Description,
             Price = courseCreateDto.Price,
             ImageFileName = imageFileName,
-            DurationTime=courseCreateDto.DurationTime,
-            SpotPlayerCourseId=courseCreateDto.SpotPlayerCourseId
+            DurationTime = courseCreateDto.DurationTime,
+            SpotPlayerCourseId = courseCreateDto.SpotPlayerCourseId,
+            Limit = courseCreateDto.Limit
         };
+
+        if (courseCreateDto.PreviewVideo != null)
+        {
+            var videoName = $"{Guid.NewGuid()}_{Path.GetFileName(courseCreateDto.PreviewVideo.FileName)}";
+
+            string tempVideoFilePath = Path.Combine(Path.GetTempPath(), videoName);
+
+            using (var stream = new FileStream(videoName, FileMode.Create))
+            {
+                await courseCreateDto.Image.CopyToAsync(stream);
+            }
+
+            await _minioService.UploadFileAsync(bucketName, videoName, tempVideoFilePath, courseCreateDto.PreviewVideo.ContentType);
+            course.PreviewVideoName = videoName;
+        }
+        // Create the course entity
+
         _context.Courses.Add(course);
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetCourse), new { id = course.Id }, course);
     }
+
     // DELETE: api/panel/Courses/5
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCourse(int id)

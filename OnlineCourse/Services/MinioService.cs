@@ -12,7 +12,7 @@ public class MinioService : IMinioService
         _minioClient = minioClient;
     }
 
-    public async Task DeleteFileAsync(string bucketName,string objectName)
+    public async Task DeleteFileAsync(string bucketName, string objectName)
     {
         try
         {
@@ -26,7 +26,8 @@ public class MinioService : IMinioService
             Console.WriteLine($"Error occurred: {ex.Message}");
         }
     }
-    public async Task UploadFileAsync(string bucketName, string objectName, string filePath)
+
+    public async Task UploadFileAsync(string bucketName, string objectName, string filePath, string type)
     {
         try
         {
@@ -40,7 +41,7 @@ public class MinioService : IMinioService
                 .WithBucket(bucketName)
                 .WithObject(objectName)
                 .WithFileName(filePath)
-                .WithContentType("image/png"));
+                .WithContentType(type));
 
             Console.WriteLine("File uploaded successfully.");
         }
@@ -49,6 +50,7 @@ public class MinioService : IMinioService
             Console.WriteLine($"Error occurred: {ex.Message}");
         }
     }
+
     // Replace the GetFileUrlAsync method with the following code
     public async Task<string> GetFileUrlAsync(string bucketName, string objectName)
     {

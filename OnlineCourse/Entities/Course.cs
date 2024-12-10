@@ -9,4 +9,6 @@ public class Course
     public int DurationTime { get; set; }
     public string ImageFileName { get; set; }
     public string SpotPlayerCourseId { get; set; }
+    public string PreviewVideoName { get; set; }
+    public byte Limit { get; set; }
 }
