@@ -6,6 +6,10 @@ namespace OnlineCourse.Contexts;
 
 public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim, UserRole, UserLogin, RoleClaim, UserToken>
 {
+    public DbSet<Course> Courses { get; set; }
+    public DbSet<UserCourses> UserCourses { get; set; }
+    public DbSet<Order> Orders { get; set; }
+    public DbSet<OrderDetails> OrderDetails { get; set; }
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
     }

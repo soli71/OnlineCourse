@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using OnlineCourse.Contexts;
 using OnlineCourse.Entities;
 using OnlineCourse.Models;
@@ -53,6 +54,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
            ([FromBody] Models.RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var roleManager=sp.GetRequiredService<RoleManager<Role>>();
             var smsService = sp.GetRequiredService<ISmsService>();
             if (!userManager.SupportsUserEmail)
             {
@@ -78,6 +80,13 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 return CreateValidationProblem(result);
             }
+            var role = await roleManager.FindByNameAsync("User");
+            if (role == null)
+            {
+                role = new Role { Name = "User" };
+                await roleManager.CreateAsync(role);
+            }
+            await userManager.AddToRoleAsync(user, "User");
 
             await SendConfirmationMobileAsync(user, userManager, smsService, phoneNumber, sp.GetRequiredService<IMemoryCache>());
             return TypedResults.Ok();
@@ -125,7 +134,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 UserName = user,
             });
-        }).RequireAuthorization();
+        }).RequireAuthorization("User");
 
         routeGroup.MapPost("site/refresh", async Task<Results<Ok<AccessTokenResponse>, UnauthorizedHttpResult, SignInHttpResult, ChallengeHttpResult>>
             ([FromBody] RefreshRequest refreshRequest, [FromServices] IServiceProvider sp) =>
@@ -291,7 +300,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Ok();
         });
 
-        var accountGroup = routeGroup.MapGroup("site/manage").RequireAuthorization();
+        var accountGroup = routeGroup.MapGroup("site/manage").RequireAuthorization("User");
 
         accountGroup.MapGet("site/info", async Task<Results<Ok<Models.InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>

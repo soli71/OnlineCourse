@@ -1,13 +1,14 @@
-using Microsoft.AspNetCore.Authentication.BearerToken;
+﻿using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using Microsoft.EntityFrameworkCore;
-using Scalar.AspNetCore;
-using OnlineCourse.Entities;
-using OnlineCourse.Contexts;
-using OnlineCourse.Services;
+using Minio;
 using OnlineCourse;
+using OnlineCourse.Contexts;
+using OnlineCourse.Entities;
 using OnlineCourse.Identity;
+using OnlineCourse.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,6 +95,13 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<BearerTokenOptions>, CustomBearerTokenOption>());
+builder.Services.AddMinio(c =>
+{
+    c.WithEndpoint("minio-nnw4iz.chbk.app");
+    c.WithCredentials("YDfsZiXN2gn0WuejtK4mgCJ1dbcjKMU4", "o4x19QwFUMUk6Lcmt4LVvCgVIcgdIEUe");
+});
+builder.Services.AddScoped<IMinioService, MinioService>();
+builder.Services.AddEndpointsApiExplorer();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -105,6 +113,13 @@ if (app.Environment.IsDevelopment())
     //app.MapScalarApiReference();
 }
 
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+};
+
+app.UseStaticFiles();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -112,5 +127,6 @@ app.UseCors("AllowReactApp");
 
 app.MapControllers();
 app.MapMyIdentityApi<User>();
+
 
 app.Run();
