@@ -49,7 +49,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         string confirmEmailEndpointName = null;
 
         var routeGroup = endpoints.MapGroup("account");
-
+   
         routeGroup.MapPost("site/register", async Task<Results<Ok, ValidationProblem>>
            ([FromBody] Models.RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
@@ -105,6 +105,10 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             if (user.Type != UserType.Site)
             {
                 return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
+            }
+            if(user.Inactive)
+            {
+                return TypedResults.Problem("حساب کاربری شما غیر فعال شده است", statusCode: StatusCodes.Status404NotFound);
             }
 
             signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
@@ -226,7 +230,10 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
             var user = await userManager.FindByNameAsync(resetRequest.PhoneNumber);
-
+            if(user.Inactive)
+            {
+                return CreateValidationProblem("حساب کاربری شما غیر فعال شده است", "حساب کاربری شما غیر فعال شده است");
+            }
             if (user is not null && await userManager.IsPhoneNumberConfirmedAsync(user))
             {
                 var memoryCache = sp.GetRequiredService<IMemoryCache>();
@@ -248,7 +255,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
                 {
                     var smsService = sp.GetRequiredService<ISmsService>();
-                    await smsService.SendAsync(user.PhoneNumber, $"کد تایید شما : {code}\r\nای آی چت");
+                    await smsService.SendAsync(user.PhoneNumber, $"کد تایید شما : {code}");
                 }
                 return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
             }
@@ -267,6 +274,10 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 // Don't reveal that the user does not exist or is not confirmed, so don't return a 200 if we would have
                 // returned a 400 for an invalid code given a valid user email.
                 return CreateValidationProblem(IdentityResult.Failed(userManager.ErrorDescriber.InvalidToken()));
+            }
+            if(user.Inactive)
+            {
+                return CreateValidationProblem("حساب کاربری شما غیر فعال شده است", "حساب کاربری شما غیر فعال شده است");
             }
 
             IdentityResult result;
@@ -349,11 +360,11 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         var panelGroup = routeGroup.MapGroup("/panel");
 
         panelGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
-         ([FromBody] LoginRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
+         ([FromBody] PanelLoginRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
         {
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            var user = await userManager.Users.FirstOrDefaultAsync(c => c.UserName == login.PhoneNumber);
+            var user = await userManager.Users.FirstOrDefaultAsync(c => c.UserName == login.Email);
             if (user is null)
             {
                 return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
@@ -362,13 +373,14 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
             }
+            if (user.Inactive)
+            {
+                return TypedResults.Problem("حساب کاربری شما غیر فعال شده است", statusCode: StatusCodes.Status404NotFound);
+            }
 
             signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
-            var result = await signInManager.PasswordSignInAsync(login.PhoneNumber, login.Password, true, lockoutOnFailure: true);
-            if (result.IsNotAllowed)
-            {
-                return TypedResults.Problem("لطفا موبایل خود را تایید نمایید", statusCode: StatusCodes.Status405MethodNotAllowed);
-            }
+            var result = await signInManager.PasswordSignInAsync(login.Email, login.Password, true, lockoutOnFailure: true);
+          
             if (!result.Succeeded)
             {
                 return TypedResults.Problem(result.ToString(), statusCode: StatusCodes.Status401Unauthorized);
@@ -563,9 +575,9 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
     {
         private IEndpointConventionBuilder InnerAsConventionBuilder => inner;
 
-        public void Add(Action<EndpointBuilder> convention) => InnerAsConventionBuilder.Add(convention);
+        public void Add(Action<EndpointBuilder> convention) => InnerAsConventionBuilder.Add(c=>c.DisplayName="Account");
 
-        public void Finally(Action<EndpointBuilder> finallyConvention) => InnerAsConventionBuilder.Finally(finallyConvention);
+        public void Finally(Action<EndpointBuilder> finallyConvention) => InnerAsConventionBuilder.Finally(c=>c.DisplayName="Account");
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]

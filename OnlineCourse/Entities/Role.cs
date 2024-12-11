@@ -1,6 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿namespace OnlineCourse.Entities;
 
-namespace OnlineCourse.Entities;
-public class Role : IdentityRole<int>
+public class Role : Microsoft.AspNetCore.Identity.IdentityRole<int>
 {
 }

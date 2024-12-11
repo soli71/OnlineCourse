@@ -8,4 +8,6 @@ public class OrderDetails
     public int CourseId { get; set; }
     public Course Course { get; set; }
     public decimal Price { get; set; }
+    public string License { get; set; }
+    public string Key { get; set; }
 }

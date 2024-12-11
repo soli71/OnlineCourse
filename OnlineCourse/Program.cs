@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,6 +14,10 @@ using OnlineCourse.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 300 * 1024 * 1024;
+});
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -76,8 +81,11 @@ builder.Services.AddIdentityApiEndpoints<User>(c =>
 {
     c.SignIn.RequireConfirmedPhoneNumber = true;
 })
+    .AddRoles<Role>()
      .AddErrorDescriber<CustomIdentityErrorDescriber>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
+
+
 
 builder.Services.AddMemoryCache();
 
@@ -104,6 +112,34 @@ builder.Services.AddScoped<IMinioService, MinioService>();
 builder.Services.AddEndpointsApiExplorer();
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var adminRole = new Role { Name = "Admin" };
+    var userRole = new Role { Name = "User" };
+    var panelRole = new Role { Name = "Panel" };
+    if (!context.Roles.Any())
+    {
+        roleManager.CreateAsync(adminRole).Wait();
+        roleManager.CreateAsync(userRole).Wait();
+        roleManager.CreateAsync(panelRole).Wait();
+    }
+    if (!context.Users.Any(c => c.Type == UserType.Admin))
+    {
+        var adminUser = new User
+        {
+            UserName = "Admin@Panel.com",
+            PhoneNumber = "09338181361",
+            Type = UserType.Admin,
+            PhoneNumberConfirmed=true,
+            EmailConfirmed=true
+        };
+        userManager.CreateAsync(adminUser, "Admin@123").Wait();
+        userManager.AddToRoleAsync(adminUser, "Admin").Wait();
+    }
+}
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

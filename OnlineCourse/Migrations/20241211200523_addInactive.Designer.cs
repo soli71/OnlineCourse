@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OnlineCourse.Contexts;
 
@@ -11,9 +12,11 @@ using OnlineCourse.Contexts;
 namespace MortezaApp.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241211200523_addInactive")]
+    partial class addInactive
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -85,9 +88,6 @@ namespace MortezaApp.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("DurationTime")
-                        .HasColumnType("int");
-
-                    b.Property<int>("FakeStudentsCount")
                         .HasColumnType("int");
 
                     b.Property<string>("ImageFileName")
@@ -170,36 +170,6 @@ namespace MortezaApp.Migrations
                     b.HasIndex("OrderId");
 
                     b.ToTable("OrderDetails");
-                });
-
-            modelBuilder.Entity("OnlineCourse.Entities.OrderStatusHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("OrderId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId");
-
-                    b.ToTable("OrderStatusHistories");
                 });
 
             modelBuilder.Entity("OnlineCourse.Entities.Role", b =>
@@ -466,17 +436,6 @@ namespace MortezaApp.Migrations
                         .IsRequired();
 
                     b.Navigation("Course");
-
-                    b.Navigation("Order");
-                });
-
-            modelBuilder.Entity("OnlineCourse.Entities.OrderStatusHistory", b =>
-                {
-                    b.HasOne("OnlineCourse.Entities.Order", "Order")
-                        .WithMany()
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
                     b.Navigation("Order");
                 });

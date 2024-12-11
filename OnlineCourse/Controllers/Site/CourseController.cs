@@ -3,22 +3,37 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Minio;
 using OnlineCourse.Contexts;
+using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Entities;
 using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Site;
-public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime);
+public class ApiResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; }
+    public object Data { get; set; }
+    public ApiResult(bool success, string message, object data)
+    {
+        Success = success;
+        Message = message;
+        Data = data;
+    }
 
-public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video);
+   
+}
+public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime,int StudentsCount);
+
+public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video, int StudentsCount);
 
 [Route("api/site/[controller]")]
 [ApiController]
-public class SiteCourseController : ControllerBase
+public class CourseController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly IMinioService _minioService;
 
-    public SiteCourseController(ApplicationDbContext context, IMinioService minioService)
+    public CourseController(ApplicationDbContext context, IMinioService minioService)
     {
         _context = context;
         _minioService = minioService;
@@ -26,7 +41,7 @@ public class SiteCourseController : ControllerBase
 
     // GET: api/PanelUsers
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<GetAllSiteCoursesDto>>> GetCourses()
+    public async Task<IActionResult> GetCourses()
     {
         var courses = await _context.Courses.ToListAsync();
 
@@ -37,14 +52,15 @@ public class SiteCourseController : ControllerBase
             c.Price,
              _minioService.GetFileUrlAsync("course", c.ImageFileName).Result,
             c.Description,
-            c.DurationTime
+            c.DurationTime,
+            c.FakeStudentsCount
         )).ToList();
-        return coursesDto;
+        return OkB(coursesDto);
     }
 
     // GET: api/PanelUsers/5
     [HttpGet("{id}")]
-    public async Task<ActionResult<GetSiteCourseDto>> GetCourse(int id)
+    public async Task<IActionResult> GetCourse(int id)
     {
         var course = await _context.Courses.FindAsync(id);
 
@@ -52,7 +68,7 @@ public class SiteCourseController : ControllerBase
 
         if (course == null)
         {
-            return NotFound();
+            return NotFoundB("دوره مورد نظر یافت نشد.");
         }
 
         var imageUrl = await _minioService.GetFileUrlAsync("course", course.ImageFileName);
@@ -70,22 +86,24 @@ public class SiteCourseController : ControllerBase
             course.Price,
             imageUrl,
             course.DurationTime,
-            video
+            video,
+            course.FakeStudentsCount
+           
         );
-        return courseDto;
+        return OkB(courseDto);
     }
 
-    [HttpGet]
-    public async Task<IActionResult> CheckCourseCapacity(int courseId)
+    [HttpGet("{courseId}/exist-capacity")]
+    public async Task<IActionResult> CheckCourseCapacity([FromRoute]int courseId)
     {
         var course = await _context.Courses.FindAsync(courseId);
         if (course is null)
         {
-            return false;
+            return OkB(false);
         }
         var totalCourseOrder = await _context.OrderDetails
-              .Where(x => x.CourseId == courseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(30) < DateTime.UtcNow)))
+              .Where(x => x.CourseId == courseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(30) > DateTime.UtcNow)))
               .CountAsync();
-        return totalCourseOrder < course.Limit;
+        return OkB(totalCourseOrder < course.Limit && course.Limit>0);
     }
 }

@@ -1,12 +1,38 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
+using OnlineCourse.Controllers.Site;
 using OnlineCourse.Entities;
 using OnlineCourse.Services;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Controllers.Panel;
 
+public class BaseController : ControllerBase
+{
+
+    protected IActionResult OkB(object value)
+    {
+        return base.Ok(new ApiResult(true, "", value));
+    }
+
+    protected IActionResult OkB()
+    {
+        return base.Ok(new ApiResult(true, "", null));
+    }
+
+    protected IActionResult BadRequestB(string message)
+    {
+        return base.BadRequest(new ApiResult(false, message, null));
+    }
+
+    protected IActionResult NotFoundB(string message)
+    {
+        return base.NotFound(new ApiResult(false, message, null));
+    }
+
+}
 public record GetAllCoursesDto(int Id, string Name, decimal Price, int DurationTime);
 
 public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string SpotPlayerCourseId, string PreviewVideo, byte Limit);
@@ -39,12 +65,13 @@ public record CourseCreateDto
 
 [Route("api/panel/[controller]")]
 [ApiController]
-public class CoursesController : ControllerBase
+[Authorize(Roles ="Admin,Panel")]
+public class CourseController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly IMinioService _minioService;
 
-    public CoursesController(ApplicationDbContext context, IMinioService minioService)
+    public CourseController(ApplicationDbContext context, IMinioService minioService)
     {
         _context = context;
         _minioService = minioService;
@@ -52,25 +79,41 @@ public class CoursesController : ControllerBase
 
     // GET: api/panel/Courses
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<GetAllCoursesDto>>> GetCourses()
+    public async Task<IActionResult> GetCourses([FromQuery] PagedRequest pagedRequest)
     {
-        return await _context.Courses.Select(c => new GetAllCoursesDto(
+        var query = _context.Courses.AsQueryable();
+        if (!string.IsNullOrEmpty(pagedRequest.Search))
+        {
+            query = query.Where(c => c.Name.Contains(pagedRequest.Search));
+        }
+        var totalCount = await query.CountAsync();
+
+        query = query.Skip((pagedRequest.PageNumber-1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
+
+        var result = await query.Select(c => new GetAllCoursesDto(
             c.Id,
             c.Name,
             c.Price,
             c.DurationTime
         )).ToListAsync();
+        return OkB(new PagedResponse<List<GetAllCoursesDto>>
+        {
+            PageNumber= pagedRequest.PageNumber,
+            PageSize = pagedRequest.PageSize,
+            Result = result,
+            TotalCount = totalCount
+        });
     }
 
     // GET: api/panel/Courses/5
     [HttpGet("{id}")]
-    public async Task<ActionResult<GetCourseDto>> GetCourse(int id)
+    public async Task<IActionResult> GetCourse(int id)
     {
         var course = await _context.Courses.FindAsync(id);
 
         if (course == null)
         {
-            return NotFound();
+            return NotFoundB("دوره مورد نظر موجود نمی باشد");
         }
 
         string image = null;
@@ -84,7 +127,7 @@ public class CoursesController : ControllerBase
         {
             video = await _minioService.GetFileUrlAsync("course", course.PreviewVideoName);
         }
-        return new GetCourseDto(
+        return OkB(new GetCourseDto(
             course.Id,
             course.Name,
             course.Description,
@@ -94,7 +137,7 @@ public class CoursesController : ControllerBase
             course.SpotPlayerCourseId,
             video,
             course.Limit
-        );
+        ));
     }
 
     // PUT: api/panel/Courses/5
@@ -104,7 +147,7 @@ public class CoursesController : ControllerBase
         var course = await _context.Courses.FindAsync(id);
         if (course == null)
         {
-            return NotFound();
+            return NotFoundB("دوره مورد نظر یافت نشد");
         }
 
         course.Name = courseUpdateDto.Name;
@@ -138,7 +181,7 @@ public class CoursesController : ControllerBase
             // Use a unique file name for the new video
             var videoName = $"{Guid.NewGuid()}_{Path.GetFileName(courseUpdateDto.PreviewVideo.FileName)}";
             string tempVideoFilePath = Path.Combine(Path.GetTempPath(), videoName);
-            using (var stream = new FileStream(videoName, FileMode.Create))
+            using (var stream = new FileStream(tempVideoFilePath, FileMode.Create))
             {
                 await courseUpdateDto.PreviewVideo.CopyToAsync(stream);
             }
@@ -148,16 +191,16 @@ public class CoursesController : ControllerBase
         }
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return OkB();
     }
 
     // POST: api/panel/Courses
     [HttpPost]
-    public async Task<ActionResult<Course>> PostCourse([FromForm] CourseCreateDto courseCreateDto)
+    public async Task<IActionResult> PostCourse([FromForm] CourseCreateDto courseCreateDto)
     {
         if (CourseExists(courseCreateDto.Name))
         {
-            return BadRequest("Course already exists");
+            return BadRequestB("دوره مورد نظر ازقبل تعریف شده است");
         }
 
         var imageFileName = $"{Guid.NewGuid()}_{Path.GetFileName(courseCreateDto.Image.FileName)}";
@@ -189,9 +232,9 @@ public class CoursesController : ControllerBase
 
             string tempVideoFilePath = Path.Combine(Path.GetTempPath(), videoName);
 
-            using (var stream = new FileStream(videoName, FileMode.Create))
+            using (var stream = new FileStream(tempVideoFilePath, FileMode.Create))
             {
-                await courseCreateDto.Image.CopyToAsync(stream);
+                await courseCreateDto.PreviewVideo.CopyToAsync(stream);
             }
 
             await _minioService.UploadFileAsync(bucketName, videoName, tempVideoFilePath, courseCreateDto.PreviewVideo.ContentType);
@@ -202,7 +245,7 @@ public class CoursesController : ControllerBase
         _context.Courses.Add(course);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetCourse), new { id = course.Id }, course);
+        return OkB();
     }
 
     // DELETE: api/panel/Courses/5
@@ -212,7 +255,7 @@ public class CoursesController : ControllerBase
         var course = await _context.Courses.FindAsync(id);
         if (course == null)
         {
-            return NotFound();
+            return NotFoundB("دوره مورد نظر یافت نشد");
         }
 
         _context.Courses.Remove(course);
@@ -220,11 +263,30 @@ public class CoursesController : ControllerBase
 
         await _minioService.DeleteFileAsync("course", course.ImageFileName);
 
-        return NoContent();
+        return OkB();
     }
 
+    [HttpGet("{id}/student-count")]
+    public async Task<IActionResult> GetStudentCount(int id)
+    {
+        var course = await _context.Courses.FindAsync(id);
+        if (course == null)
+        {
+            return NotFoundB("دوره مورد نظر یافت نشد");
+        }
+        return OkB(course.FakeStudentsCount);
+    }
     private bool CourseExists(string name)
     {
         return _context.Courses.Any(e => e.Name == name);
     }
+
+
+}
+public class CourseStudentCountDto
+{
+    public int ReserveCount { get; set; }
+    public int CompletedCount { get; set; }
+    public int TotalCount { get; set; }
+
 }
