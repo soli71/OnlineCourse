@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Entities;
+using OnlineCourse.Services;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
@@ -11,12 +13,10 @@ namespace OnlineCourse.Controllers.Site;
 public class CreateCartDto
 {
     public int CourseId { get; set; }
-    public decimal Price { get; set; }
 
-    public CreateCartDto(int courseId, decimal price)
+    public CreateCartDto(int courseId)
     {
         CourseId = courseId;
-        Price = price;
     }
 }
 
@@ -26,23 +26,27 @@ public class CartItemDto
     public string Name { get; set; }
     public decimal Price { get; set; }
     public string Message { get; set; }
-
-    public CartItemDto(int courseId, string name, decimal price, string message = null)
+    public string Image { get; set; }
+    public CartItemDto(int courseId, string name, decimal price, string message = null, string image = null)
     {
         CourseId = courseId;
         Name = name;
         Price = price;
         Message = message;
+        Image = image;
     }
 }
 
 public class CartDto
 {
     public List<CartItemDto> CartItems { get; set; }
-
-    public CartDto(List<CartItemDto> cartItems)
+    public decimal TotalPrice { get; set; }
+    public decimal Discount { get; set; }
+    public CartDto(List<CartItemDto> cartItems, decimal discount,decimal totalPrice)
     {
         CartItems = cartItems;
+        Discount = discount;
+        TotalPrice = totalPrice;
     }
 }
 
@@ -51,18 +55,23 @@ public class CartDto
 [Authorize(Roles="User")]
 public class CartController : BaseController
 {
-
+    private readonly IMinioService _minioService; 
     private readonly ApplicationDbContext _context;
 
-    public CartController(ApplicationDbContext context)
+    public CartController(ApplicationDbContext context, IMinioService minioService)
     {
         _context = context;
+        _minioService = minioService;
     }
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] CreateCartDto createCartDto)
     {
         var user = HttpContext.User;
         var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
+
+        var course = _context.Courses.FirstOrDefault(c => c.Id == createCartDto.CourseId);
+        if (course is null)
+            return NotFoundB("دوره مورد نظر یافت نشد");
 
         var cart = await _context.Carts.Include(c=>c.CartItems).FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatus.Active);
         if (cart is null)
@@ -76,7 +85,7 @@ public class CartController : BaseController
                     new CartItem
                     {
                         CourseId = createCartDto.CourseId,
-                        Price = createCartDto.Price
+                        Price = course.Price
                     }
                 }
             };
@@ -91,7 +100,7 @@ public class CartController : BaseController
             cart.CartItems.Add(new CartItem
             {
                 CourseId = createCartDto.CourseId,
-                Price = createCartDto.Price
+                Price = course.Price
             });
         }
 
@@ -113,6 +122,7 @@ public class CartController : BaseController
         {
             return OkB(null);
         }
+
         foreach(var cartItem in cart.CartItems)
         {
             var course = await _context.Courses.FindAsync(cartItem.CourseId);
@@ -121,6 +131,7 @@ public class CartController : BaseController
                 cartItem.Message = "این دوره غیرفعال می باشد";
                 cartItem.IsDelete = true;
             }
+
             var totalCourseOrder = await _context.OrderDetails
                 .Where(x => x.CourseId == cartItem.CourseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
                 .CountAsync();
@@ -137,7 +148,9 @@ public class CartController : BaseController
         }
 
         await _context.SaveChangesAsync();
-        var cartDto = new CartDto(cart.CartItems.Select(x => new CartItemDto(x.CourseId, x.Course.Name, x.Price,x.Message)).ToList());
+
+        var discount = 0;
+        var cartDto = new CartDto(cart.CartItems.Select( x => new CartItemDto(x.CourseId, x.Course.Name, x.Price,x.Message,  _minioService.GetFileUrlAsync("course", x.Course.ImageFileName).Result)).ToList(), discount, cart.CartItems.Sum(c=>c.Price)- discount);
         return OkB(cartDto);
     }
 

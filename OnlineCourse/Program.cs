@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -9,7 +10,9 @@ using OnlineCourse;
 using OnlineCourse.Contexts;
 using OnlineCourse.Entities;
 using OnlineCourse.Identity;
+using OnlineCourse.RateLimiters;
 using OnlineCourse.Services;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -110,6 +113,57 @@ builder.Services.AddMinio(c =>
 });
 builder.Services.AddScoped<IMinioService, MinioService>();
 builder.Services.AddEndpointsApiExplorer();
+
+var globalLimiterOptions = builder.Configuration.GetSection("RateLimit:GlobalLimiterOptions")?.Get<GlobalLimiterOptions>() ?? new();
+var enableRateLimit = bool.Parse(builder.Configuration["RateLimit:Enabled"] ?? "false");
+if (enableRateLimit)
+{
+    builder.Services.AddRateLimiter(options =>
+    {
+        if (globalLimiterOptions.Enabled)
+        {
+            var limiters = new List<PartitionedRateLimiter<HttpContext>>();
+
+            if (globalLimiterOptions.GlobalFixedWindowLimiterOptions.Enabled)
+            {
+                var fixedWindowLimiter = globalLimiterOptions.GlobalFixedWindowLimiterOptions.FixedWindowRateLimiterOptions;
+                var fixedLimit = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    RateLimitPartition.GetFixedWindowLimiter("FixedWindowLimiter", _ => fixedWindowLimiter));
+                limiters.Add(fixedLimit);
+            }
+
+            if (globalLimiterOptions.GlobalTokenBucketLimiterOptions.Enabled)
+            {
+                var tokenBucketLimiter = globalLimiterOptions.GlobalTokenBucketLimiterOptions.TokenBucketRateLimiterOptions;
+                var bucketLimit = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    RateLimitPartition.GetTokenBucketLimiter("TokenBucketLimiter", _ => tokenBucketLimiter));
+                limiters.Add(bucketLimit);
+            }
+
+            if (globalLimiterOptions.GlobalConcurrencyLimiterOptions.Enabled)
+            {
+                var concurrencyLimiter = globalLimiterOptions.GlobalConcurrencyLimiterOptions.ConcurrencyLimiterOptions;
+                var concurrencyLimit = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    RateLimitPartition.GetConcurrencyLimiter("ConcurrencyLimiter", _ => concurrencyLimiter));
+                limiters.Add(concurrencyLimit);
+            }
+
+            options.GlobalLimiter = PartitionedRateLimiter.CreateChained(limiters.ToArray());
+        }
+        else
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            RateLimitPartition.GetTokenBucketLimiter("DefaultRateLimiter",
+             _ => new TokenBucketRateLimiterOptions
+             {
+                 TokenLimit = 1000,
+                 AutoReplenishment = true,
+                 ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                 TokensPerPeriod = 10,
+                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                 QueueLimit = 2,
+             }));
+    });
+}
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -133,8 +187,8 @@ using (var scope = app.Services.CreateScope())
             UserName = "Admin@Panel.com",
             PhoneNumber = "09338181361",
             Type = UserType.Admin,
-            PhoneNumberConfirmed=true,
-            EmailConfirmed=true
+            PhoneNumberConfirmed = true,
+            EmailConfirmed = true
         };
         userManager.CreateAsync(adminUser, "Admin@123").Wait();
         userManager.AddToRoleAsync(adminUser, "Admin").Wait();
@@ -154,6 +208,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 };
+if (enableRateLimit)
+    app.UseRateLimiter();
 
 app.UseStaticFiles();
 app.UseHttpsRedirection();

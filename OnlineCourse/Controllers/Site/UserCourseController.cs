@@ -19,8 +19,11 @@ namespace OnlineCourse.Controllers.Site
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllUserCourses(int userId)
+        public async Task<IActionResult> GetAllUserCourses()
         {
+            
+            var userId = int.Parse(User.FindFirst("Id").Value);
+
             var userCourses = await _applicationDbContext.OrderDetails
               .Include(x => x.Order)
               .Where(x => x.Order.UserId == userId && x.Order.Status == Entities.OrderStatus.Paid)

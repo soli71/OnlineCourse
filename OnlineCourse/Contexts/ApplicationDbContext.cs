@@ -10,6 +10,9 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
     public DbSet<OrderDetails> OrderDetails { get; set; }
     public DbSet<Cart> Carts { get; set; }
     public DbSet<OrderStatusHistory> OrderStatusHistories { get; set; }
+    public DbSet<CourseSeason> CourseSeasons { get; set; }
+    public DbSet<HeadLines> HeadLines { get; set; }
+    public DbSet<Blog> Blogs { get; set; }
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
     }

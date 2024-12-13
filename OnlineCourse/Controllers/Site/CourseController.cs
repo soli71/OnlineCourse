@@ -1,7 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Conventions;
-using Minio;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Entities;
@@ -13,16 +11,18 @@ public class ApiResult
     public bool Success { get; set; }
     public string Message { get; set; }
     public object Data { get; set; }
-    public ApiResult(bool success, string message, object data)
+    public int StatusCode { get; set; }
+    public ApiResult(bool success, string message, object data, int statusCode)
     {
         Success = success;
         Message = message;
         Data = data;
+        StatusCode = statusCode;
     }
 
-   
+
 }
-public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime,int StudentsCount);
+public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime, int StudentsCount);
 
 public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video, int StudentsCount);
 
@@ -60,7 +60,7 @@ public class CourseController : BaseController
 
     // GET: api/PanelUsers/5
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetCourse(int id)
+    public async Task<IActionResult> GetCourse([FromRoute] int id)
     {
         var course = await _context.Courses.FindAsync(id);
 
@@ -88,13 +88,13 @@ public class CourseController : BaseController
             course.DurationTime,
             video,
             course.FakeStudentsCount
-           
+
         );
         return OkB(courseDto);
     }
 
     [HttpGet("{courseId}/exist-capacity")]
-    public async Task<IActionResult> CheckCourseCapacity([FromRoute]int courseId)
+    public async Task<IActionResult> CheckCourseCapacity([FromRoute] int courseId)
     {
         var course = await _context.Courses.FindAsync(courseId);
         if (course is null)
@@ -104,6 +104,36 @@ public class CourseController : BaseController
         var totalCourseOrder = await _context.OrderDetails
               .Where(x => x.CourseId == courseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(30) > DateTime.UtcNow)))
               .CountAsync();
-        return OkB(totalCourseOrder < course.Limit && course.Limit>0);
+        return OkB(totalCourseOrder < course.Limit && course.Limit > 0);
+    }
+
+    [HttpGet("{courseId}/seasons")]
+    public async Task<IActionResult> GetCourseSeasons([FromRoute] int courseId)
+    {
+        var course = await _context.Courses
+            .Include(c => c.CourseSeasons)
+            .ThenInclude(cs => cs.HeadLines)
+            .FirstOrDefaultAsync(c => c.Id == courseId);
+
+        if (course == null)
+        {
+            return NotFoundB("دوره مورد نظر یافت نشد");
+        }
+        var seasonsDto = course.CourseSeasons.OrderBy(c => c.Order).Select(cs => new
+        {
+            cs.Id,
+            cs.Name,
+            cs.Order,
+            HeadLines = cs.HeadLines.OrderBy(c => c.Order).Select(h => new
+            {
+                h.Id,
+                h.Title,
+                h.Description,
+                h.Order,
+                h.DurationTime
+            }).ToList()
+        }).ToList();
+
+        return OkB(seasonsDto);
     }
 }

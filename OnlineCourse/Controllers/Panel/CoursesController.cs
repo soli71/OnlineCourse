@@ -2,37 +2,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
-using OnlineCourse.Controllers.Site;
 using OnlineCourse.Entities;
 using OnlineCourse.Services;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Controllers.Panel;
-
-public class BaseController : ControllerBase
-{
-
-    protected IActionResult OkB(object value)
-    {
-        return base.Ok(new ApiResult(true, "", value));
-    }
-
-    protected IActionResult OkB()
-    {
-        return base.Ok(new ApiResult(true, "", null));
-    }
-
-    protected IActionResult BadRequestB(string message)
-    {
-        return base.BadRequest(new ApiResult(false, message, null));
-    }
-
-    protected IActionResult NotFoundB(string message)
-    {
-        return base.NotFound(new ApiResult(false, message, null));
-    }
-
-}
 public record GetAllCoursesDto(int Id, string Name, decimal Price, int DurationTime);
 
 public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string SpotPlayerCourseId, string PreviewVideo, byte Limit);

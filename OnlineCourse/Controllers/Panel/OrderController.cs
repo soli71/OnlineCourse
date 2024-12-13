@@ -15,7 +15,7 @@ public class PagedRequest
     public int PageSize { get; set; } = 10;
     public string Search { get; set; }
 }
-public class PagedResponse<T> where T : class
+public class PagedResponse<T> where T :new()
 {
     public T Result { get; set; }
     public int PageNumber { get; set; }
