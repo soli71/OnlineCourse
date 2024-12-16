@@ -7,9 +7,9 @@ using OnlineCourse.Services;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Controllers.Panel;
-public record GetAllCoursesDto(int Id, string Name, decimal Price, int DurationTime,bool IsPublish);
+public record GetAllCoursesDto(int Id, string Name, decimal Price, int DurationTime, bool IsPublish);
 
-public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string SpotPlayerCourseId, string PreviewVideo, byte Limit,bool IsPublish);
+public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string SpotPlayerCourseId, string PreviewVideo, byte Limit, bool IsPublish);
 
 public record CourseUpdateDto
 {
@@ -41,7 +41,7 @@ public record CourseCreateDto
 
 [Route("api/panel/[controller]")]
 [ApiController]
-[Authorize(Roles ="Admin,Panel")]
+[Authorize(Roles = "Admin,Panel")]
 public class CourseController : BaseController
 {
     private readonly ApplicationDbContext _context;
@@ -64,7 +64,7 @@ public class CourseController : BaseController
         }
         var totalCount = await query.CountAsync();
 
-        query = query.Skip((pagedRequest.PageNumber-1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
+        query = query.Skip((pagedRequest.PageNumber - 1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
 
         var result = await query.Select(c => new GetAllCoursesDto(
             c.Id,
@@ -75,7 +75,7 @@ public class CourseController : BaseController
         )).ToListAsync();
         return OkB(new PagedResponse<List<GetAllCoursesDto>>
         {
-            PageNumber= pagedRequest.PageNumber,
+            PageNumber = pagedRequest.PageNumber,
             PageSize = pagedRequest.PageSize,
             Result = result,
             TotalCount = totalCount
@@ -262,17 +262,28 @@ public class CourseController : BaseController
         }
         return OkB(course.FakeStudentsCount);
     }
+
+    [HttpGet("{courseId}/seasons")]
+    public async Task<IActionResult> GetCourseSeasons([FromRoute] int courseId)
+    {
+        var courseSeasons = await _context.CourseSeasons.Select(c => new GetAllCourseSeasonsDto
+        {
+            Id = c.Id,
+            Name = c.Name
+        }).ToListAsync();
+
+        return OkB(courseSeasons);
+    }
+
     private bool CourseExists(string name)
     {
         return _context.Courses.Any(e => e.Name == name);
     }
-
-
 }
+
 public class CourseStudentCountDto
 {
     public int ReserveCount { get; set; }
     public int CompletedCount { get; set; }
     public int TotalCount { get; set; }
-
 }

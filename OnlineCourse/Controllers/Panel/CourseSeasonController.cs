@@ -7,6 +7,7 @@ using OnlineCourse.Entities;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Controllers.Panel;
+
 public class CourseSeasonCreateDto
 {
     [Required]
@@ -25,11 +26,13 @@ public class CourseSeasonUpdateDto
 
     public byte Order { get; set; }
 }
+
 public class GetAllCourseSeasonsDto
 {
     public int Id { get; set; }
     public string Name { get; set; }
 }
+
 public class GetCourseSeasonDto
 {
     public int Id { get; set; }
@@ -37,12 +40,14 @@ public class GetCourseSeasonDto
     public string Course { get; set; }
     public byte Order { get; set; }
 }
+
 [Route("api/panel/[controller]")]
 [ApiController]
-[Authorize(Roles ="Admin,Panel")]
+[Authorize(Roles = "Admin,Panel")]
 public class SeasonController : BaseController
 {
     private readonly ApplicationDbContext _context;
+
     public SeasonController(ApplicationDbContext context)
     {
         _context = context;
@@ -62,18 +67,6 @@ public class SeasonController : BaseController
         await _context.SaveChangesAsync();
 
         return OkB();
-    }
-
-    [HttpGet("{courseId}")]
-    public async Task<IActionResult> GetCourseSeasons([FromRoute] int courseId)
-    {
-        var courseSeasons = await _context.CourseSeasons.Select(c => new GetAllCourseSeasonsDto
-        {
-            Id = c.Id,
-            Name = c.Name
-        }).ToListAsync();
-
-        return OkB(courseSeasons);
     }
 
     [HttpGet("{seasonId}")]
@@ -122,6 +115,7 @@ public class SeasonController : BaseController
     }
 
     #region TitleOfCourse
+
     [HttpGet("{seasonId}/headlines")]
     public async Task<IActionResult> Headlines([FromRoute] int seasonId)
     {
@@ -206,7 +200,6 @@ public class SeasonController : BaseController
         });
     }
 
-
     #endregion TitleOfCourse
 }
 
@@ -214,19 +207,24 @@ public class SeasonHeadlineCreateDto
 {
     [Required]
     public string Title { get; set; }
+
     [Required]
     public string Description { get; set; }
+
     [Required]
     public int DurationTime { get; set; }
 
     public byte Order { get; set; }
 }
+
 public class SeasonHeadlineUpdateDto
 {
     [Required]
     public string Title { get; set; }
+
     [Required]
     public string Description { get; set; }
+
     [Required]
     public int DurationTime { get; set; }
 
