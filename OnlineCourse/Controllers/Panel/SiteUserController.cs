@@ -15,6 +15,7 @@ public class SiteUserController : BaseController
     private readonly ApplicationDbContext _context;
     private readonly RoleManager<Role> _roleManager;
     private readonly UserManager<User> _userManager;
+
     public SiteUserController(ApplicationDbContext context, UserManager<User> userManager, RoleManager<Role> roleManager)
     {
         _context = context;
@@ -33,7 +34,7 @@ public class SiteUserController : BaseController
         }
 
         var totalCount = await users.CountAsync();
-        users =users.Skip((pagedRequest.PageNumber-1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
+        users = users.Skip((pagedRequest.PageNumber - 1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
 
         var result = await users.Select(c => new ListUserDto
         {
@@ -47,7 +48,7 @@ public class SiteUserController : BaseController
             Result = result,
             PageNumber = pagedRequest.PageNumber,
             PageSize = pagedRequest.PageSize,
-            TotalCount=totalCount
+            TotalCount = totalCount
         };
         return OkB(pagedResponse);
     }
@@ -66,7 +67,8 @@ public class SiteUserController : BaseController
             PhoneNumber = user.PhoneNumber,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            Id = user.Id
+            Id = user.Id,
+            IsActive = !user.Inactive
         });
     }
 
@@ -125,7 +127,6 @@ public class SiteUserController : BaseController
             PhoneNumberConfirmed = true
         };
 
-
         var result = await _userManager.CreateAsync(user, createUserDto.Password);
         if (!result.Succeeded)
         {
@@ -144,11 +145,10 @@ public class SiteUserController : BaseController
         return OkB();
     }
 
-
     [HttpPatch("{id}/deactive")]
     public async Task<IActionResult> Inactive(int id)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(c=>c.Id==id && c.Type==UserType.Site);
+        var user = await _context.Users.FirstOrDefaultAsync(c => c.Id == id && c.Type == UserType.Site);
         if (user == null)
         {
             return NotFoundB("یوزر مورد نظر یافت نشد");
@@ -170,7 +170,6 @@ public class SiteUserController : BaseController
         await _context.SaveChangesAsync();
         return OkB();
     }
-
 
     private bool UserExists(int id)
     {

@@ -10,5 +10,30 @@
             response.EnsureSuccessStatusCode();
             Console.WriteLine(await response.Content.ReadAsStringAsync());
         }
+
+        public async Task SendVerificationCodeAsync(string phoneNumber, string code)
+        {
+            var message = $"کد تایید شما : {code}\r\nhttps://mortezaaghaei.com";
+            await SendAsync(phoneNumber, message);
+        }
+
+        public async Task SendCreateOrderMessageForUser(string phoneNumber, string orderCode)
+        {
+            var message = $"سفارش {orderCode} با موفقیت ثبت شد.\r\nلطفا پس از پرداخت هزینه دوره با پشتیبانی در تماس باشید.\r\nhttps://mortezaaghaei.com";
+            await SendAsync(phoneNumber, message);
+        }
+
+        public async Task SendCreateOrderMessageForAdmin(string phoneNumber, string orderCode, string courseName, string date)
+        {
+            var message = $"سفارش با شماره {orderCode} برای دوره {courseName} ثبت شد.\r\nتاریخ : {date}\r\nhttps://mortezaaghaei.com";
+
+            await SendAsync(phoneNumber, message);
+        }
+
+        public async Task SendCoursePaidSuccessfully(string phoneNumber, string courseName)
+        {
+            string message = $"دوره {courseName} با موفقیت برای شما فعال شد.\r\nبرای مشاهده دوره به پروفایل کاربری خود مراجعه نمایید.\r\nhttps://mortezaaghaei.com";
+            await SendAsync(phoneNumber, message);
+        }
     }
 }

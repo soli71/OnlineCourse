@@ -14,6 +14,8 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ExpireTokenTime": "3600",
         "RefreshExpireTokenTime": "72576000",
+        "AdminPhoneNumber": "09354663872",
+        "SpotPlayerApiKey": "Z1xTKstMxyoJpPnIldOj6QeojwYwgE3S",
         "DOMAIN": "http://localhost:2020,http://localhost:3000"
       },
       "dotnetRunMessages": true,

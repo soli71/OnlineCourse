@@ -7,9 +7,9 @@ using OnlineCourse.Services;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Controllers.Panel;
-public record GetAllCoursesDto(int Id, string Name, decimal Price, int DurationTime);
+public record GetAllCoursesDto(int Id, string Name, decimal Price, int DurationTime,bool IsPublish);
 
-public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string SpotPlayerCourseId, string PreviewVideo, byte Limit);
+public record GetCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string SpotPlayerCourseId, string PreviewVideo, byte Limit,bool IsPublish);
 
 public record CourseUpdateDto
 {
@@ -21,6 +21,7 @@ public record CourseUpdateDto
     public int DurationTime { get; init; }
     public string SpotPlayerCourseId { get; init; }
     public byte Limit { get; init; }
+    public bool IsPublish { get; init; }
 }
 
 public record CourseCreateDto
@@ -35,6 +36,7 @@ public record CourseCreateDto
     public int DurationTime { get; init; }
     public string SpotPlayerCourseId { get; init; }
     public byte Limit { get; init; }
+    public bool IsPublish { get; init; }
 }
 
 [Route("api/panel/[controller]")]
@@ -68,7 +70,8 @@ public class CourseController : BaseController
             c.Id,
             c.Name,
             c.Price,
-            c.DurationTime
+            c.DurationTime,
+            c.IsPublish
         )).ToListAsync();
         return OkB(new PagedResponse<List<GetAllCoursesDto>>
         {
@@ -110,7 +113,8 @@ public class CourseController : BaseController
             course.DurationTime,
             course.SpotPlayerCourseId,
             video,
-            course.Limit
+            course.Limit,
+            course.IsPublish
         ));
     }
 
@@ -130,6 +134,7 @@ public class CourseController : BaseController
         course.SpotPlayerCourseId = courseUpdateDto.SpotPlayerCourseId;
         course.DurationTime = courseUpdateDto.DurationTime;
         course.Limit = courseUpdateDto.Limit;
+        course.IsPublish = courseUpdateDto.IsPublish;
         if (courseUpdateDto.Image != null)
         {
             await _minioService.DeleteFileAsync("course", course.ImageFileName);
@@ -197,7 +202,8 @@ public class CourseController : BaseController
             ImageFileName = imageFileName,
             DurationTime = courseCreateDto.DurationTime,
             SpotPlayerCourseId = courseCreateDto.SpotPlayerCourseId,
-            Limit = courseCreateDto.Limit
+            Limit = courseCreateDto.Limit,
+            IsPublish = courseCreateDto.IsPublish
         };
 
         if (courseCreateDto.PreviewVideo != null)
@@ -230,6 +236,12 @@ public class CourseController : BaseController
         if (course == null)
         {
             return NotFoundB("دوره مورد نظر یافت نشد");
+        }
+
+        var existOrder = await _context.OrderDetails.AnyAsync(c => c.CourseId == id);
+        if (existOrder)
+        {
+            return BadRequestB("این دوره در سفارشات کاربران موجود می باشد. لطفا دوره  را از حالت منتشر شده خارح نمایید");
         }
 
         _context.Courses.Remove(course);

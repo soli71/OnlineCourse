@@ -10,4 +10,5 @@ public class OrderDetails
     public decimal Price { get; set; }
     public string License { get; set; }
     public string Key { get; set; }
+    public string Description { get; set; }
 }

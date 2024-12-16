@@ -57,11 +57,12 @@ public class CartController : BaseController
 {
     private readonly IMinioService _minioService; 
     private readonly ApplicationDbContext _context;
-
-    public CartController(ApplicationDbContext context, IMinioService minioService)
+    private readonly ICourseCapacityService _courseCapacityService;
+    public CartController(ApplicationDbContext context, IMinioService minioService, ICourseCapacityService courseCapacityService)
     {
         _context = context;
         _minioService = minioService;
+        _courseCapacityService = courseCapacityService;
     }
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] CreateCartDto createCartDto)
@@ -69,9 +70,12 @@ public class CartController : BaseController
         var user = HttpContext.User;
         var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
 
-        var course = _context.Courses.FirstOrDefault(c => c.Id == createCartDto.CourseId);
+        var course = _context.Courses.FirstOrDefault(c => c.Id == createCartDto.CourseId && c.IsPublish);
         if (course is null)
             return NotFoundB("دوره مورد نظر یافت نشد");
+
+      
+
 
         var cart = await _context.Carts.Include(c=>c.CartItems).FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatus.Active);
         if (cart is null)
@@ -125,17 +129,17 @@ public class CartController : BaseController
 
         foreach(var cartItem in cart.CartItems)
         {
-            var course = await _context.Courses.FindAsync(cartItem.CourseId);
+            var course = await _context.Courses.FirstOrDefaultAsync(c=>c.Id== cartItem.CourseId && c.IsPublish);
             if (course is null)
             {
                 cartItem.Message = "این دوره غیرفعال می باشد";
                 cartItem.IsDelete = true;
             }
 
-            var totalCourseOrder = await _context.OrderDetails
-                .Where(x => x.CourseId == cartItem.CourseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
-                .CountAsync();
-            if (course.Limit > 0 && totalCourseOrder > course.Limit)
+
+
+            var capacity = await _courseCapacityService.ExistCourseCapacityAsync(course.Id);
+            if (!capacity)
             {
                 cartItem.Message = "ظرفیت دوره تکمیل می باشد";
                 cartItem.IsDelete = true;

@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OnlineCourse.Entities;
+using System.Reflection.Emit;
 
 namespace OnlineCourse.Contexts;
+
 public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim, UserRole, UserLogin, RoleClaim, UserToken>
 {
     public DbSet<Course> Courses { get; set; }
@@ -13,6 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
     public DbSet<CourseSeason> CourseSeasons { get; set; }
     public DbSet<HeadLines> HeadLines { get; set; }
     public DbSet<Blog> Blogs { get; set; }
+
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
     }
@@ -20,6 +24,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<User>().ToTable("Users");
         modelBuilder.Entity<Role>().ToTable("Roles");
         modelBuilder.Entity<UserRole>().ToTable("UserRoles");

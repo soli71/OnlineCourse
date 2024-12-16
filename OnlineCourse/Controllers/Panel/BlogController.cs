@@ -30,7 +30,8 @@ namespace OnlineCourse.Controllers.Panel
                 Content = createDto.Content,
                 Tags = createDto.Tags,
                 IsPublish = createDto.IsPublish,
-                CreateDate = DateTime.UtcNow
+                CreateDate = DateTime.UtcNow,
+         
             };
             if (createDto.Image != null)
             {

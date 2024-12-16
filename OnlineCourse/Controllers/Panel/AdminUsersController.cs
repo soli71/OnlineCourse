@@ -8,13 +8,13 @@ using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Panel;
 
-
 public class UpdateSiteUserDto
 {
     public int Id { get; set; }
     public string FirstName { get; set; }
     public string LastName { get; set; }
 }
+
 public class CreateSiteUserDto
 {
     public string Email { get; set; }
@@ -23,13 +23,16 @@ public class CreateSiteUserDto
     public string PhoneNumber { get; set; }
     public string Password { get; set; }
 }
+
 public class SiteUserDto
 {
     public int Id { get; set; }
     public string FirstName { get; set; }
     public string LastName { get; set; }
     public string PhoneNumber { get; set; }
+    public bool IsActive { get; set; }
 }
+
 public class ListUserDto
 {
     public int Id { get; set; }
@@ -39,7 +42,7 @@ public class ListUserDto
 }
 
 [Route("api/panel/[controller]")]
-[Authorize(Roles ="Admin")]
+[Authorize(Roles = "Admin")]
 [ApiController]
 public class AdminUsersController : BaseController
 {
@@ -63,9 +66,9 @@ public class AdminUsersController : BaseController
         }
 
         var totalCount = await query.CountAsync();
-        query =query.Skip((pagedRequest.PageNumber-1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
+        query = query.Skip((pagedRequest.PageNumber - 1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
 
-        var result= await query.Where(c => c.Type == UserType.Admin).Select(c => new PanelUserListDto
+        var result = await query.Where(c => c.Type == UserType.Admin).Select(c => new PanelUserListDto
         {
             Email = c.Email,
             FirstName = c.FirstName,
@@ -98,7 +101,8 @@ public class AdminUsersController : BaseController
             FirstName = user.FirstName,
             Id = user.Id,
             LastName = user.LastName,
-            PhoneNumber = user.PhoneNumber
+            PhoneNumber = user.PhoneNumber,
+            IsActive = !user.Inactive
         });
     }
 
@@ -169,7 +173,6 @@ public class AdminUsersController : BaseController
         return OkB();
     }
 
-
     [HttpPatch("{id}/deactive")]
     public async Task<IActionResult> Inactive(int id)
     {
@@ -196,21 +199,18 @@ public class AdminUsersController : BaseController
         return OkB();
     }
 
-
     //Chane current user password
     [HttpPut("ChangePassword")]
     public async Task<IActionResult> ChangePassword(ChangePasswordDto changePasswordDto)
     {
-     
-
         var user = await _userManager.FindByIdAsync(changePasswordDto.UserId.ToString());
         if (user == null)
         {
             return NotFoundB("یوزر مورد نظر یافت نشد");
         }
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-     
-        var result = await _userManager.ResetPasswordAsync(user,token, changePasswordDto.NewPassword);
+
+        var result = await _userManager.ResetPasswordAsync(user, token, changePasswordDto.NewPassword);
 
         if (!result.Succeeded)
         {
@@ -230,14 +230,15 @@ public class ChangePasswordDto
     public int UserId { get; set; }
     public string NewPassword { get; set; }
 }
+
 public class PanelUserListDto
 {
     public int Id { get; set; }
     public string FirstName { get; set; }
     public string LastName { get; set; }
     public string Email { get; set; }
-
 }
+
 public class PanelUserDto
 {
     public int Id { get; set; }
@@ -245,5 +246,5 @@ public class PanelUserDto
     public string LastName { get; set; }
     public string Email { get; set; }
     public string PhoneNumber { get; set; }
-
+    public bool IsActive { get; set; }
 }

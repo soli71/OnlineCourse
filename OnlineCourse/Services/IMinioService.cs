@@ -1,4 +1,6 @@
-﻿namespace OnlineCourse.Services
+﻿using Microsoft.AspNetCore.OutputCaching;
+
+namespace OnlineCourse.Services
 {
     public interface IMinioService
     {
@@ -8,4 +10,5 @@
 
         Task UploadFileAsync(string bucketName, string objectName, string filePath, string type);
     }
+
 }

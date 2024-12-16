@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.SqlClient;
@@ -8,10 +9,14 @@ using Microsoft.Extensions.Options;
 using Minio;
 using OnlineCourse;
 using OnlineCourse.Contexts;
+using OnlineCourse.Controllers.Site;
 using OnlineCourse.Entities;
 using OnlineCourse.Identity;
 using OnlineCourse.RateLimiters;
 using OnlineCourse.Services;
+using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -88,8 +93,6 @@ builder.Services.AddIdentityApiEndpoints<User>(c =>
      .AddErrorDescriber<CustomIdentityErrorDescriber>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
-
-
 builder.Services.AddMemoryCache();
 
 var domain = Environment.GetEnvironmentVariable("DOMAIN");
@@ -112,6 +115,8 @@ builder.Services.AddMinio(c =>
     c.WithCredentials("YDfsZiXN2gn0WuejtK4mgCJ1dbcjKMU4", "o4x19QwFUMUk6Lcmt4LVvCgVIcgdIEUe");
 });
 builder.Services.AddScoped<IMinioService, MinioService>();
+builder.Services.AddScoped<ICourseCapacityService, CourseCapacityService>();
+builder.Services.AddScoped<ISpotPlayerService, SpotPlayerService>();
 builder.Services.AddEndpointsApiExplorer();
 
 var globalLimiterOptions = builder.Configuration.GetSection("RateLimit:GlobalLimiterOptions")?.Get<GlobalLimiterOptions>() ?? new();
@@ -162,8 +167,19 @@ if (enableRateLimit)
                  QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                  QueueLimit = 2,
              }));
+
+        options.OnRejected = async (context, cancellationToken) =>
+        {
+            context.HttpContext.Response.StatusCode = 429; // Too Many Requests
+            context.HttpContext.Response.ContentType = "application/json";
+            var error = new ApiResult(false, "تعداد درخواست‌های شما بیش از حد مجاز است. لطفاً بعداً تلاش کنید.", null, 429);
+            await context.HttpContext.Response.WriteAsync(JsonSerializer.Serialize(error), cancellationToken);
+        };
     });
 }
+
+builder.Services.AddOutputCache();
+builder.Services.AddHttpClient();
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -194,7 +210,8 @@ using (var scope = app.Services.CreateScope())
         userManager.AddToRoleAsync(adminUser, "Admin").Wait();
     }
 }
-// Configure the HTTP request pipeline.
+
+app.UseOutputCache();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -219,6 +236,5 @@ app.UseCors("AllowReactApp");
 
 app.MapControllers();
 app.MapMyIdentityApi<User>();
-
 
 app.Run();

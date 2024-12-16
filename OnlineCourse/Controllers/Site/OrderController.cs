@@ -5,6 +5,7 @@ using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Entities;
 using OnlineCourse.Extensions;
+using OnlineCourse.Services;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
@@ -15,10 +16,15 @@ namespace OnlineCourse.Controllers.Site;
 public class OrderController : BaseController
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICourseCapacityService _courseCapacityService;
+    private readonly ISmsService _smsService;
+    private readonly Lock _lock = new();
 
-    public OrderController(ApplicationDbContext context)
+    public OrderController(ApplicationDbContext context, ICourseCapacityService courseCapacityService, ISmsService smsService)
     {
         _context = context;
+        _courseCapacityService = courseCapacityService;
+        _smsService = smsService;
     }
 
     [HttpPost]
@@ -41,40 +47,66 @@ public class OrderController : BaseController
         List<FinalizeCartCourseDto> finalizeCartCourseDtos = new();
         foreach (var cartItem in cart.CartItems)
         {
-            var course = await _context.Courses.FindAsync(cartItem.CourseId);
+            var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == cartItem.CourseId && c.IsPublish);
 
-            var totalCourseOrder = await _context.OrderDetails
-                .Where(x => x.CourseId == cartItem.CourseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
-                .CountAsync();
-
-            if (course.Limit > 0 && totalCourseOrder > course.Limit)
-            {
-                return BadRequestB("ظرفیت دوره تکمیل می باشد");
-            }
             if (course is null)
             {
                 return BadRequestB("این دوره غیرفعال می باشد");
             }
+
+            var courseCapacity = await _courseCapacityService.ExistCourseCapacityAsync(cartItem.CourseId);
+            if (!courseCapacity)
+            {
+                return BadRequestB("ظرفیت دوره تکمیل می باشد");
+            }
+
             totalPrice += course.Price;
         }
         cart.Status = CartStatus.Close;
 
-        var order = new Order
+        Order order = new();
+        using (_lock.EnterScope())
         {
-            UserId = userId,
-            TotalPrice = totalPrice,
-            OrderDate = DateTime.UtcNow,
-            Status = OrderStatus.Pending,
-            OrderDetails = cart.CartItems.Select(x => new OrderDetails
+            int orderCodeSequence = GetNextOrderCode();
+
+            order = new Order
             {
-                CourseId = x.CourseId,
-                Price = x.Price
-            }).ToList()
-        };
-        _context.Orders.Add(order);
-        await _context.SaveChangesAsync();
+                UserId = userId,
+                TotalPrice = totalPrice,
+                OrderDate = DateTime.UtcNow,
+                Status = OrderStatus.Pending,
+                OrderCode = $"OC-{orderCodeSequence}",
+                OrderDetails = cart.CartItems.Select(x => new OrderDetails
+                {
+                    CourseId = x.CourseId,
+                    Price = x.Price
+                }).ToList()
+            };
+            _context.Orders.Add(order);
+            _context.SaveChanges();
+        }
+
+        //read admin phone number from environment variable
+        var adminPhoneNumber = Environment.GetEnvironmentVariable("AdminPhoneNumber");
+        await _smsService.SendCreateOrderMessageForAdmin(adminPhoneNumber, order.OrderCode, order.OrderDetails.FirstOrDefault().Course.Name, order.OrderDate.ToPersianDateTime());
+
+        //send sms to user
+        await _smsService.SendCreateOrderMessageForUser(user.FindFirstValue(ClaimTypes.MobilePhone), order.OrderCode);
         return OkB();
     }
+
+    private int GetNextOrderCode()
+    {
+        var lastOrderCode = _context.Orders.OrderByDescending(x => x.Id).FirstOrDefault()?.OrderCode;
+        //get order code sequence
+        var orderCodeSequence = 2000;
+        if (!string.IsNullOrEmpty(lastOrderCode))
+        {
+            orderCodeSequence = int.Parse(lastOrderCode.Split('-')[1]) + 1;
+        }
+        return orderCodeSequence;
+    }
+
     [HttpGet]
     public async Task<IActionResult> Get()
     {
@@ -88,13 +120,14 @@ public class OrderController : BaseController
                  x.Id,
                  x.Status.GetDisplayValue(),
                  x.TotalPrice,
-                 x.OrderDate.ToPersianDateTime()
+                 x.OrderDate.ToPersianDateTime(),
+                    x.OrderCode
             )).ToListAsync();
         return OkB(order);
     }
 }
 
-public record GetOrderSiteDto(int Id, string Status, decimal TotalPrice, string OrderDate);
+public record GetOrderSiteDto(int Id, string Status, decimal TotalPrice, string OrderDate, string OrderCode);
 
 public record FinalizeCartDto(decimal TotalPrice, List<FinalizeCartCourseDto> FinalizeCartCourseDtos);
 public record FinalizeCartCourseDto(int CourseId, string Name, decimal Price, string message);

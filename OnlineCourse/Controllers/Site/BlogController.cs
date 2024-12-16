@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
@@ -8,7 +9,7 @@ using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Site
 {
-    [Route("api/[controller]")]
+    [Route("api/site/[controller]")]
     [ApiController]
     public class BlogController : BaseController
     {
@@ -20,9 +21,10 @@ namespace OnlineCourse.Controllers.Site
             _minioService = minioService;
         }
         [HttpGet("top-blogs")]
+        [OutputCache(Duration = 70,Tags = [CacheTag.General])]
         public async Task<IActionResult> GetTopBlogs()
         {
-            var blogs = await _context.Blogs
+            var blogs = await _context.Blogs.Where(c=>c.IsPublish)
                 .OrderByDescending(c => c.Visit)
                 .OrderByDescending(c => c.CreateDate)
                 .Take(10)
@@ -32,15 +34,14 @@ namespace OnlineCourse.Controllers.Site
                     c.Id,
                 })
                 .ToListAsync();
-
             return OkB(blogs);
         }
 
         [HttpGet]
         //Todo: Add Caching,Ratelimit
-        public async Task<IActionResult> GetBlogs(PagedRequest pagedRequest)
+        public async Task<IActionResult> GetBlogs([FromQuery]PagedRequest pagedRequest)
         {
-            var query = _context.Blogs.AsQueryable();
+            var query = _context.Blogs.Where(c=>c.IsPublish).AsQueryable();
             if (!string.IsNullOrWhiteSpace(pagedRequest.Search))
             {
                 query = query.Where(c => c.Title.Contains(pagedRequest.Search));
@@ -68,9 +69,9 @@ namespace OnlineCourse.Controllers.Site
             });
         }
         [HttpGet("{blogId}")]
-        public async Task<IActionResult> GetBlog(int blogId)
+        public async Task<IActionResult> GetBlog([FromRoute]int blogId)
         {
-            var blog = await _context.Blogs.FirstOrDefaultAsync(c => c.Id == blogId);
+            var blog = await _context.Blogs.FirstOrDefaultAsync(c => c.Id == blogId && c.IsPublish);
             if (blog == null)
             {
                 return NotFoundB("مقاله مورد نظر یافت نشد");

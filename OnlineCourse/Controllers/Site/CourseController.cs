@@ -22,9 +22,9 @@ public class ApiResult
 
 
 }
-public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime, int StudentsCount);
+public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime, int StudentsCount,bool ExistCapacity);
 
-public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video, int StudentsCount);
+public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video, int StudentsCount,bool ExistCapacity);
 
 [Route("api/site/[controller]")]
 [ApiController]
@@ -32,18 +32,21 @@ public class CourseController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly IMinioService _minioService;
-
-    public CourseController(ApplicationDbContext context, IMinioService minioService)
+    private readonly ICourseCapacityService _courseCapacityService;
+    public CourseController(ApplicationDbContext context, 
+                            IMinioService minioService,
+                            ICourseCapacityService courseCapacityService)
     {
         _context = context;
         _minioService = minioService;
+        _courseCapacityService = courseCapacityService;
     }
 
     // GET: api/PanelUsers
     [HttpGet]
     public async Task<IActionResult> GetCourses()
     {
-        var courses = await _context.Courses.ToListAsync();
+        var courses = await _context.Courses.Where(c=>c.IsPublish).ToListAsync();
 
         //map to GetAllCoursesDto
         var coursesDto = courses.Select(c => new GetAllSiteCoursesDto(
@@ -53,8 +56,10 @@ public class CourseController : BaseController
              _minioService.GetFileUrlAsync("course", c.ImageFileName).Result,
             c.Description,
             c.DurationTime,
-            c.FakeStudentsCount
+            c.FakeStudentsCount,
+            _courseCapacityService.ExistCourseCapacityAsync(c.Id).Result
         )).ToList();
+
         return OkB(coursesDto);
     }
 
@@ -62,7 +67,7 @@ public class CourseController : BaseController
     [HttpGet("{id}")]
     public async Task<IActionResult> GetCourse([FromRoute] int id)
     {
-        var course = await _context.Courses.FindAsync(id);
+        var course = await _context.Courses.FirstOrDefaultAsync(c=>c.IsPublish && c.Id==id);
 
         //load image
 
@@ -71,6 +76,7 @@ public class CourseController : BaseController
             return NotFoundB("دوره مورد نظر یافت نشد.");
         }
 
+
         var imageUrl = await _minioService.GetFileUrlAsync("course", course.ImageFileName);
 
         string video = null;
@@ -78,6 +84,7 @@ public class CourseController : BaseController
         {
             video = await _minioService.GetFileUrlAsync("course", course.PreviewVideoName);
         }
+        var courseCapacity = await _courseCapacityService.ExistCourseCapacityAsync(course.Id);
 
         var courseDto = new GetSiteCourseDto(
             course.Id,
@@ -87,8 +94,8 @@ public class CourseController : BaseController
             imageUrl,
             course.DurationTime,
             video,
-            course.FakeStudentsCount
-
+            course.FakeStudentsCount,
+            courseCapacity
         );
         return OkB(courseDto);
     }
@@ -96,15 +103,10 @@ public class CourseController : BaseController
     [HttpGet("{courseId}/exist-capacity")]
     public async Task<IActionResult> CheckCourseCapacity([FromRoute] int courseId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
-        if (course is null)
-        {
-            return OkB(false);
-        }
-        var totalCourseOrder = await _context.OrderDetails
-              .Where(x => x.CourseId == courseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(30) > DateTime.UtcNow)))
-              .CountAsync();
-        return OkB(totalCourseOrder < course.Limit && course.Limit > 0);
+       
+        var capacity = await _courseCapacityService.ExistCourseCapacityAsync(courseId);
+
+        return OkB(capacity);
     }
 
     [HttpGet("{courseId}/seasons")]
