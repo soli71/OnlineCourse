@@ -8,6 +8,7 @@ public class Cart
 
     public List<CartItem> CartItems { get; set; }
 }
+
 public class CartItem
 {
     public int Id { get; set; }
@@ -18,13 +19,14 @@ public class CartItem
     public int CartId { get; set; }
     public bool IsDelete { get; set; }
     public string Message { get; set; }
-
 }
+
 public enum CartStatus
 {
     Active,
     Close
 }
+
 public class Course
 {
     public int Id { get; set; }
@@ -47,9 +49,10 @@ public class CourseSeason
     public string Name { get; set; }
     public int CourseId { get; set; }
     public Course Course { get; set; }
-    public byte  Order { get; set; }
+    public byte Order { get; set; }
     public ICollection<HeadLines> HeadLines { get; set; }
 }
+
 public class HeadLines
 {
     public int Id { get; set; }
@@ -59,9 +62,7 @@ public class HeadLines
     public int DurationTime { get; set; }
     public int CourseSeasonId { get; set; }
     public CourseSeason CourseSeason { get; set; }
-
 }
-
 
 public class Blog
 {
@@ -73,4 +74,15 @@ public class Blog
     public DateTime CreateDate { get; set; }
     public bool IsPublish { get; set; }
     public int Visit { get; set; }
+}
+
+public class SiteSetting
+{
+    public byte Id { get; set; }
+    public string FooterContent { get; set; }
+
+    public string AboutUs { get; set; }
+
+    public string TelegramLink { get; set; }
+    public string InstagramLink { get; set; }
 }

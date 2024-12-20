@@ -161,7 +161,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.SignIn(newPrincipal, authenticationScheme: IdentityConstants.BearerScheme);
         });
 
-        routeGroup.MapPost("site/confirm-phone-number", async Task<Results<ContentHttpResult, EmptyHttpResult, UnauthorizedHttpResult >>
+        routeGroup.MapPost("site/confirm-phone-number", async Task<Results<ContentHttpResult, EmptyHttpResult, UnauthorizedHttpResult>>
             ([FromBody] ConfirmPhoneNumberRequest request, [FromServices] IServiceProvider sp) =>
         {
             var userManager = sp.GetRequiredService<UserManager<TUser>>();
@@ -196,7 +196,6 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
 
             await signInManager.PasswordSignInAsync(user, password, true, false);
-
 
             return TypedResults.Empty;
         });
@@ -375,11 +374,11 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             var user = await userManager.Users.FirstOrDefaultAsync(c => c.UserName == login.Email);
             if (user is null)
             {
-                return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
+                return TypedResults.Problem("کاربری  یافت نشد", statusCode: StatusCodes.Status404NotFound);
             }
             if (user.Type != UserType.Admin)
             {
-                return TypedResults.Problem("کاربری با این شماره موبایل یافت نشد", statusCode: StatusCodes.Status404NotFound);
+                return TypedResults.Problem("کاربری یافت نشد", statusCode: StatusCodes.Status404NotFound);
             }
             if (user.Inactive)
             {
@@ -408,7 +407,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 return;
             }
-            await smsService.SendAsync(mobile, $"کد تایید شما : {code}");
+            await smsService.SendVerificationCodeAsync(mobile, code);
         }
 
         panelGroup.MapPost("/forgotPassword", async Task<Results<Ok<SendVerificationCodeResponse>, ValidationProblem>>
@@ -442,7 +441,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
                 {
                     var smsService = sp.GetRequiredService<ISmsService>();
-                    await smsService.SendAsync(user.PhoneNumber, $"کد تایید شما : {code}");
+                    await smsService.SendVerificationCodeAsync(user.PhoneNumber, code);
                 }
                 return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
             }

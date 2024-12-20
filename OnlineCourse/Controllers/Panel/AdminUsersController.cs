@@ -160,7 +160,8 @@ public class AdminUsersController : BaseController
             LastName = createUserDto.LastName,
             Mobile = createUserDto.Mobile,
             PhoneNumberConfirmed = true,
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            Type = UserType.Admin
         };
 
         // Assuming you have a method to create a user with a password

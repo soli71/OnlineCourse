@@ -9,12 +9,13 @@ namespace OnlineCourse.Controllers.Panel
 {
     [Route("api/panel/[controller]")]
     [ApiController]
-    [Authorize("Admin,Panel")]
+    [Authorize(Roles = "Admin,Panel")]
     public class BlogController : BaseController
     {
         private readonly ApplicationDbContext _context;
 
         private readonly IMinioService _minioService;
+
         public BlogController(ApplicationDbContext context, IMinioService minioService)
         {
             _context = context;
@@ -22,7 +23,7 @@ namespace OnlineCourse.Controllers.Panel
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] BlogCreateDto createDto)
+        public async Task<IActionResult> Create([FromForm] BlogCreateDto createDto)
         {
             var blog = new Blog
             {
@@ -31,7 +32,6 @@ namespace OnlineCourse.Controllers.Panel
                 Tags = createDto.Tags,
                 IsPublish = createDto.IsPublish,
                 CreateDate = DateTime.UtcNow,
-         
             };
             if (createDto.Image != null)
             {
@@ -52,10 +52,10 @@ namespace OnlineCourse.Controllers.Panel
             _context.SaveChanges();
             return OkB();
         }
-        [HttpPut("{id}")]
-        public IActionResult Update(int id, [FromBody] BlogCreateDto updateDto)
-        {
 
+        [HttpPut("{id}")]
+        public IActionResult Update([FromRoute] int id, [FromForm] BlogCreateDto updateDto)
+        {
             var blog = _context.Blogs.Find(id);
             if (blog == null)
             {
@@ -84,6 +84,7 @@ namespace OnlineCourse.Controllers.Panel
             _context.SaveChanges();
             return OkB();
         }
+
         [HttpDelete("{id}")]
         public IActionResult DeleteBlog(int id)
         {
@@ -93,6 +94,7 @@ namespace OnlineCourse.Controllers.Panel
                 return NotFoundB("بلاگ یافت نشد");
             }
             _context.Blogs.Remove(blog);
+            _context.SaveChanges();
             return OkB();
         }
 
@@ -131,14 +133,16 @@ namespace OnlineCourse.Controllers.Panel
         }
     }
 }
+
 public class BlogCreateDto
 {
     [Required]
     public string Title { get; set; }
+
     [Required]
     public string Content { get; set; }
+
     public string[] Tags { get; set; }
     public IFormFile Image { get; set; }
     public bool IsPublish { get; set; }
 }
-

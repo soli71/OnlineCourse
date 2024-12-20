@@ -17,6 +17,8 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
     public DbSet<HeadLines> HeadLines { get; set; }
     public DbSet<Blog> Blogs { get; set; }
 
+    public DbSet<SiteSetting> SiteSettings { get; set; }
+
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
     }

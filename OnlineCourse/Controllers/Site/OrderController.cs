@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
@@ -6,6 +7,7 @@ using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Entities;
 using OnlineCourse.Extensions;
 using OnlineCourse.Services;
+using System.Diagnostics;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
@@ -17,14 +19,16 @@ public class OrderController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly ICourseCapacityService _courseCapacityService;
+    private readonly UserManager<User> _userManager;
     private readonly ISmsService _smsService;
     private readonly Lock _lock = new();
 
-    public OrderController(ApplicationDbContext context, ICourseCapacityService courseCapacityService, ISmsService smsService)
+    public OrderController(ApplicationDbContext context, ICourseCapacityService courseCapacityService, ISmsService smsService, UserManager<User> userManager)
     {
         _context = context;
         _courseCapacityService = courseCapacityService;
         _smsService = smsService;
+        _userManager = userManager;
     }
 
     [HttpPost]
@@ -90,8 +94,12 @@ public class OrderController : BaseController
         var adminPhoneNumber = Environment.GetEnvironmentVariable("AdminPhoneNumber");
         await _smsService.SendCreateOrderMessageForAdmin(adminPhoneNumber, order.OrderCode, order.OrderDetails.FirstOrDefault().Course.Name, order.OrderDate.ToPersianDateTime());
 
+        var userForMessage = await _userManager.FindByIdAsync(userId.ToString());
+
+        Debug.Assert(userForMessage is null);
+
         //send sms to user
-        await _smsService.SendCreateOrderMessageForUser(user.FindFirstValue(ClaimTypes.MobilePhone), order.OrderCode);
+        await _smsService.SendCreateOrderMessageForUser(userForMessage.PhoneNumber, order.OrderCode);
         return OkB();
     }
 

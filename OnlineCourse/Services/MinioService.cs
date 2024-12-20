@@ -37,11 +37,31 @@ public class MinioService : IMinioService
                 await _minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(bucketName));
             }
 
+            string policyJson = $@"
+        {{
+            ""Version"": ""2012-10-17"",
+            ""Statement"": [
+                {{
+                    ""Effect"": ""Allow"",
+                    ""Principal"": ""*"",
+                    ""Action"": [""s3:GetObject""],
+                    ""Resource"": [""arn:aws:s3:::{bucketName}/*""]
+                }}
+            ]
+        }}
+            ";
+
+            await _minioClient.SetPolicyAsync(new SetPolicyArgs()
+               .WithBucket(bucketName)
+               .WithPolicy(policyJson)
+           );
             await _minioClient.PutObjectAsync(new PutObjectArgs()
                 .WithBucket(bucketName)
                 .WithObject(objectName)
                 .WithFileName(filePath)
-                .WithContentType(type));
+                .WithContentType(type)
+               )
+                ;
 
             Console.WriteLine("File uploaded successfully.");
         }
