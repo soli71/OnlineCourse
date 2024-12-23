@@ -34,5 +34,16 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
         modelBuilder.Entity<UserLogin>().ToTable("UserLogins");
         modelBuilder.Entity<RoleClaim>().ToTable("RoleClaims");
         modelBuilder.Entity<UserToken>().ToTable("UserTokens");
+        modelBuilder.Entity<SiteSetting>().HasData(new SiteSetting
+        {
+            AboutUs = "درباره ما",
+            Address = "آدرس",
+            Email = "ایمیل",
+            FooterContent = "محتوای فوتر",
+            Id = 1,
+            Map = "نقشه",
+            PhoneNumber = "شماره تلفن",
+            PostalCode = "کد پستی"
+        });
     }
 }

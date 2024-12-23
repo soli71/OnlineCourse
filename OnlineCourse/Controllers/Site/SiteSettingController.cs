@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
+using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Site;
 
@@ -9,16 +10,22 @@ namespace OnlineCourse.Controllers.Site;
 public class SiteSettingController : BaseController
 {
     private readonly ApplicationDbContext _applicationDbContext;
+    private readonly IMinioService _minioService;
 
-    public SiteSettingController(ApplicationDbContext applicationDbContext)
+    public SiteSettingController(ApplicationDbContext applicationDbContext, IMinioService minioService)
     {
         _applicationDbContext = applicationDbContext;
+        _minioService = minioService;
     }
 
     [HttpGet]
-    public IActionResult Get()
+    public async Task<IActionResult> GetAsync()
     {
-        var setting = _applicationDbContext.SiteSettings.FirstOrDefault();
-        return OkB(setting);
+        var siteSetting = _applicationDbContext.SiteSettings.FirstOrDefault();
+        if (siteSetting.MainPageImage != null)
+        {
+            siteSetting.MainPageImage = await _minioService.GetFileUrlAsync("mainpage", siteSetting.MainPageImage);
+        }
+        return Ok(siteSetting);
     }
 }

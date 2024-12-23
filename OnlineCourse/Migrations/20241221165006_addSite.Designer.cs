@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OnlineCourse.Contexts;
 
@@ -11,9 +12,11 @@ using OnlineCourse.Contexts;
 namespace OnlineCourse.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241221165006_addSite")]
+    partial class addSite
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -373,12 +376,6 @@ namespace OnlineCourse.Migrations
                     b.Property<string>("InstagramLink")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("MainPageContent")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MainPageImage")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Map")
                         .HasColumnType("nvarchar(max)");
 
@@ -390,45 +387,6 @@ namespace OnlineCourse.Migrations
 
                     b.Property<string>("TelegramLink")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("VisibleAboutUs")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleAddress")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleEmail")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleFooterContent")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleInstagramLink")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleMainPageBlogs")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleMainPageContent")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleMainPageCourses")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleMainPageImage")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleMap")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisiblePhoneNumber")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisiblePostalCode")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("VisibleTelegramLink")
-                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -444,20 +402,7 @@ namespace OnlineCourse.Migrations
                             FooterContent = "محتوای فوتر",
                             Map = "نقشه",
                             PhoneNumber = "شماره تلفن",
-                            PostalCode = "کد پستی",
-                            VisibleAboutUs = false,
-                            VisibleAddress = false,
-                            VisibleEmail = false,
-                            VisibleFooterContent = false,
-                            VisibleInstagramLink = false,
-                            VisibleMainPageBlogs = false,
-                            VisibleMainPageContent = false,
-                            VisibleMainPageCourses = false,
-                            VisibleMainPageImage = false,
-                            VisibleMap = false,
-                            VisiblePhoneNumber = false,
-                            VisiblePostalCode = false,
-                            VisibleTelegramLink = false
+                            PostalCode = "کد پستی"
                         });
                 });
 

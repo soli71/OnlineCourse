@@ -262,7 +262,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
                 {
                     var smsService = sp.GetRequiredService<ISmsService>();
-                    await smsService.SendAsync(user.PhoneNumber, $"کد تایید شما : {code}");
+                    await smsService.SendVerificationCodeAsync(user.PhoneNumber,code);
                 }
                 return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
             }
