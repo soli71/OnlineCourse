@@ -203,7 +203,8 @@ public class CourseController : BaseController
             DurationTime = courseCreateDto.DurationTime,
             SpotPlayerCourseId = courseCreateDto.SpotPlayerCourseId,
             Limit = courseCreateDto.Limit,
-            IsPublish = courseCreateDto.IsPublish
+            IsPublish = courseCreateDto.IsPublish,
+            Slug = courseCreateDto.Name
         };
 
         if (courseCreateDto.PreviewVideo != null)
@@ -275,6 +276,39 @@ public class CourseController : BaseController
         return OkB(courseSeasons);
     }
 
+    [HttpGet("{courseId}/SEO")]
+    public async Task<IActionResult> GetSEO(int courseId)
+    {
+        var course = await _context.Courses.FindAsync(courseId);
+        if (course == null)
+        {
+            return NotFoundB("دوره مورد نظر یافت نشد");
+        }
+        return OkB(new SEODto
+        {
+            Slug = course.Slug,
+            MetaTitle = course.MetaTitle,
+            MetaTagDescription = course.MetaTagDescription,
+            MetaKeywords = course.MetaKeywords
+        });
+    }
+
+    [HttpPatch("{courseId}/SEO")]
+    public async Task<IActionResult> UpdateSEO(int courseId, [FromBody] SEODto seo)
+    {
+        var course = await _context.Courses.FindAsync(courseId);
+        if (course == null)
+        {
+            return NotFoundB("دوره مورد نظر یافت نشد");
+        }
+        course.Slug = seo.Slug;
+        course.MetaTitle = seo.MetaTitle;
+        course.MetaTagDescription = seo.MetaTagDescription;
+        course.MetaKeywords = seo.MetaKeywords;
+        await _context.SaveChangesAsync();
+        return OkB();
+    }
+
     private bool CourseExists(string name)
     {
         return _context.Courses.Any(e => e.Name == name);
@@ -286,4 +320,12 @@ public class CourseStudentCountDto
     public int ReserveCount { get; set; }
     public int CompletedCount { get; set; }
     public int TotalCount { get; set; }
+}
+
+public class SEODto
+{
+    public string Slug { get; set; }
+    public string MetaTitle { get; set; }
+    public string MetaTagDescription { get; set; }
+    public string[] MetaKeywords { get; set; }
 }

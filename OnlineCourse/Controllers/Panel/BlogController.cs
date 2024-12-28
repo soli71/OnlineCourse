@@ -32,6 +32,7 @@ namespace OnlineCourse.Controllers.Panel
                 Tags = createDto.Tags,
                 IsPublish = createDto.IsPublish,
                 CreateDate = DateTime.UtcNow,
+                Slug = createDto.Title
             };
             if (createDto.Image != null)
             {
@@ -130,6 +131,39 @@ namespace OnlineCourse.Controllers.Panel
                 blog.IsPublish,
                 _minioService.GetFileUrlAsync("ma-blog", blog.ImageFileName).Result
             });
+        }
+
+        [HttpGet("{blogId}/SEO")]
+        public IActionResult GetSEO([FromRoute] int blogId)
+        {
+            var blog = _context.Blogs.Find(blogId);
+            if (blog == null)
+            {
+                return NotFoundB("بلاگ یافت نشد");
+            }
+            return OkB(new SEODto
+            {
+                Slug = blog.Slug,
+                MetaTagDescription = blog.MetaTagDescription,
+                MetaTitle = blog.MetaTitle,
+                MetaKeywords = blog.MetaKeywords
+            });
+        }
+
+        [HttpPatch("{blogId}/SEO")]
+        public IActionResult UpdateSEO([FromRoute] int blogId, [FromBody] SEODto seo)
+        {
+            var blog = _context.Blogs.Find(blogId);
+            if (blog == null)
+            {
+                return NotFoundB("بلاگ یافت نشد");
+            }
+            blog.Slug = seo.Slug;
+            blog.MetaTagDescription = seo.MetaTagDescription;
+            blog.MetaTitle = seo.MetaTitle;
+            blog.MetaKeywords = seo.MetaKeywords;
+            _context.SaveChanges();
+            return OkB();
         }
     }
 }

@@ -72,7 +72,7 @@ namespace OnlineCourse.Controllers.Panel
             siteSettingEntity.VisibleMainPageBlogs = siteSetting.VisibleMainPageBlogs;
             siteSettingEntity.VisibleMainPageImage = siteSetting.VisibleMainPageImage;
             siteSettingEntity.VisibleMainPageCourses = siteSetting.VisibleMainPageCourses;
-
+            siteSettingEntity.Title = siteSetting.Title;
             _applicationDbContext.SaveChanges();
             return Ok();
         }
@@ -126,4 +126,5 @@ public class UpdateSiteSettingDto
     public bool VisibleMainPageBlogs { get; set; }
 
     public bool VisibleMainPageCourses { get; set; }
+    public string Title { get; set; }
 }

@@ -1,8 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OnlineCourse.Entities;
-using System.Reflection.Emit;
 
 namespace OnlineCourse.Contexts;
 
@@ -26,7 +25,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
         modelBuilder.Entity<User>().ToTable("Users");
         modelBuilder.Entity<Role>().ToTable("Roles");
         modelBuilder.Entity<UserRole>().ToTable("UserRoles");
@@ -45,5 +44,21 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
             PhoneNumber = "شماره تلفن",
             PostalCode = "کد پستی"
         });
+    }
+}
+
+public class CourseConfiguration : IEntityTypeConfiguration<Course>
+{
+    public void Configure(EntityTypeBuilder<Course> builder)
+    {
+        builder.HasIndex(builder => builder.Slug).IsUnique();
+    }
+}
+
+public class BlogConfiguration : IEntityTypeConfiguration<Blog>
+{
+    public void Configure(EntityTypeBuilder<Blog> builder)
+    {
+        builder.HasIndex(builder => builder.Slug).IsUnique();
     }
 }

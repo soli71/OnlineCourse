@@ -23,9 +23,9 @@ public class ApiResult
     }
 }
 
-public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime, int StudentsCount, bool ExistCapacity);
+public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime, int StudentsCount, bool ExistCapacity, string Slug);
 
-public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video, int StudentsCount, bool ExistCapacity);
+public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video, int StudentsCount, bool ExistCapacity, string MetaTitle, string MetaDescription, string[] MetaKeywords);
 
 [Route("api/site/[controller]")]
 [ApiController]
@@ -59,17 +59,18 @@ public class CourseController : BaseController
             c.Description,
             c.DurationTime,
             c.FakeStudentsCount,
-            _courseCapacityService.ExistCourseCapacityAsync(c.Id).Result
+            _courseCapacityService.ExistCourseCapacityAsync(c.Id).Result,
+            c.Slug
         )).ToList();
 
         return OkB(coursesDto);
     }
 
     // GET: api/PanelUsers/5
-    [HttpGet("{id}")]
-    public async Task<IActionResult> GetCourse([FromRoute] int id)
+    [HttpGet("{slug}")]
+    public async Task<IActionResult> GetCourse([FromRoute] string slug)
     {
-        var course = await _context.Courses.FirstOrDefaultAsync(c => c.IsPublish && c.Id == id);
+        var course = await _context.Courses.FirstOrDefaultAsync(c => c.IsPublish && c.Slug == slug);
 
         //load image
 
@@ -97,7 +98,10 @@ public class CourseController : BaseController
             course.DurationTime,
             video,
             course.FakeStudentsCount,
-            courseCapacity
+            courseCapacity,
+            course.MetaTitle,
+            course.MetaTagDescription,
+            course.MetaKeywords
         );
         return OkB(courseDto);
     }

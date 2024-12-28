@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OnlineCourse.Contexts;
 
@@ -11,9 +12,11 @@ using OnlineCourse.Contexts;
 namespace OnlineCourse.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241226150748_AddTitleToSiteSetting")]
+    partial class AddTitleToSiteSetting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -42,18 +45,6 @@ namespace OnlineCourse.Migrations
                     b.Property<bool>("IsPublish")
                         .HasColumnType("bit");
 
-                    b.PrimitiveCollection<string>("MetaKeywords")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MetaTagDescription")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MetaTitle")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Slug")
-                        .HasColumnType("nvarchar(450)");
-
                     b.PrimitiveCollection<string>("Tags")
                         .HasColumnType("nvarchar(max)");
 
@@ -64,10 +55,6 @@ namespace OnlineCourse.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Slug")
-                        .IsUnique()
-                        .HasFilter("[Slug] IS NOT NULL");
 
                     b.ToTable("Blogs");
                 });
@@ -149,15 +136,6 @@ namespace OnlineCourse.Migrations
                     b.Property<byte>("Limit")
                         .HasColumnType("tinyint");
 
-                    b.PrimitiveCollection<string>("MetaKeywords")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MetaTagDescription")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MetaTitle")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
@@ -167,17 +145,10 @@ namespace OnlineCourse.Migrations
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<string>("Slug")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<string>("SpotPlayerCourseId")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Slug")
-                        .IsUnique()
-                        .HasFilter("[Slug] IS NOT NULL");
 
                     b.ToTable("Courses");
                 });

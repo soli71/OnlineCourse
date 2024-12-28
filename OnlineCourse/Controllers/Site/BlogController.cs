@@ -15,33 +15,34 @@ namespace OnlineCourse.Controllers.Site
     {
         private readonly ApplicationDbContext _context;
         private readonly IMinioService _minioService;
+
         public BlogController(ApplicationDbContext context, IMinioService minioService)
         {
             _context = context;
             _minioService = minioService;
         }
+
         [HttpGet("top-blogs")]
-        [OutputCache(Duration = 70,Tags = [CacheTag.General])]
+        [OutputCache(Duration = 70, Tags = [CacheTag.General])]
         public async Task<IActionResult> GetTopBlogs()
         {
-            var blogs = await _context.Blogs.Where(c=>c.IsPublish)
+            var blogs = await _context.Blogs.Where(c => c.IsPublish)
                 .OrderByDescending(c => c.Visit)
                 .OrderByDescending(c => c.CreateDate)
                 .Take(10)
                 .Select(c => new
                 {
                     c.Title,
-                    c.Id,
+                    c.Slug
                 })
                 .ToListAsync();
             return OkB(blogs);
         }
 
         [HttpGet]
-        //Todo: Add Caching,Ratelimit
-        public async Task<IActionResult> GetBlogs([FromQuery]PagedRequest pagedRequest)
+        public async Task<IActionResult> GetBlogs([FromQuery] PagedRequest pagedRequest)
         {
-            var query = _context.Blogs.Where(c=>c.IsPublish).AsQueryable();
+            var query = _context.Blogs.Where(c => c.IsPublish).AsQueryable();
             if (!string.IsNullOrWhiteSpace(pagedRequest.Search))
             {
                 query = query.Where(c => c.Title.Contains(pagedRequest.Search));
@@ -57,7 +58,8 @@ namespace OnlineCourse.Controllers.Site
                     c.Title,
                     c.Content,
                     c.Visit,
-                    _minioService.GetFileUrlAsync("ma-blog", c.ImageFileName).Result
+                    _minioService.GetFileUrlAsync("ma-blog", c.ImageFileName).Result,
+                    c.Slug
                 }).ToList();
 
             return OkB(new PagedResponse<object>
@@ -68,10 +70,11 @@ namespace OnlineCourse.Controllers.Site
                 Result = blogs
             });
         }
-        [HttpGet("{blogId}")]
-        public async Task<IActionResult> GetBlog([FromRoute]int blogId)
+
+        [HttpGet("{slug}")]
+        public async Task<IActionResult> GetBlog([FromRoute] string slug)
         {
-            var blog = await _context.Blogs.FirstOrDefaultAsync(c => c.Id == blogId && c.IsPublish);
+            var blog = await _context.Blogs.FirstOrDefaultAsync(c => c.Slug == slug && c.IsPublish);
             if (blog == null)
             {
                 return NotFoundB("مقاله مورد نظر یافت نشد");
@@ -86,6 +89,9 @@ namespace OnlineCourse.Controllers.Site
                 blog.Title,
                 blog.Content,
                 blog.Visit,
+                blog.MetaTitle,
+                blog.MetaTagDescription,
+                blog.MetaKeywords,
                 _minioService.GetFileUrlAsync("ma-blog", blog.ImageFileName).Result
             });
         }
