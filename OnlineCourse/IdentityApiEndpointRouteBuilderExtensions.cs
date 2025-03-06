@@ -7,9 +7,6 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages;
-using OnlineCourse.Contexts;
 using OnlineCourse.Entities;
 using OnlineCourse.Models;
 using OnlineCourse.Services;
@@ -18,7 +15,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text;
-using System.Text.Encodings.Web;
 
 namespace OnlineCourse;
 
@@ -262,7 +258,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
                 if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
                 {
                     var smsService = sp.GetRequiredService<ISmsService>();
-                    await smsService.SendVerificationCodeAsync(user.PhoneNumber,code);
+                    await smsService.SendVerificationCodeAsync(user.PhoneNumber, code);
                 }
                 return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
             }

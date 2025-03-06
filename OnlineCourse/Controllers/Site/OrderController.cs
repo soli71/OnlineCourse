@@ -21,7 +21,7 @@ public class OrderController : BaseController
     private readonly ICourseCapacityService _courseCapacityService;
     private readonly UserManager<User> _userManager;
     private readonly ISmsService _smsService;
-    private readonly Lock _lock = new();
+    private readonly object _lock = new();
 
     public OrderController(ApplicationDbContext context, ICourseCapacityService courseCapacityService, ISmsService smsService, UserManager<User> userManager)
     {
@@ -69,7 +69,9 @@ public class OrderController : BaseController
         cart.Status = CartStatus.Close;
 
         Order order = new();
-        using (_lock.EnterScope())
+        //using (_lock.EnterScope())
+        //{
+        lock (_lock)
         {
             int orderCodeSequence = GetNextOrderCode();
 
@@ -89,6 +91,7 @@ public class OrderController : BaseController
             _context.Orders.Add(order);
             _context.SaveChanges();
         }
+        //}
 
         //read admin phone number from environment variable
         var adminPhoneNumber = Environment.GetEnvironmentVariable("AdminPhoneNumber");
