@@ -111,8 +111,8 @@ builder.Services.AddCors(options =>
 builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<BearerTokenOptions>, CustomBearerTokenOption>());
 builder.Services.AddMinio(c =>
 {
-    c.WithEndpoint("minio-nnw4iz.chbk.app");
-    c.WithCredentials("YDfsZiXN2gn0WuejtK4mgCJ1dbcjKMU4", "o4x19QwFUMUk6Lcmt4LVvCgVIcgdIEUe");
+    c.WithEndpoint("minio.chbk.app");
+    c.WithCredentials("qluHNnovlTLh9zs4R0BR4G4UlroPMTef", "a6jvqg6wQwbendIMFZcEum35lTZrbIiO");
 });
 builder.Services.AddScoped<IMinioService, MinioService>();
 builder.Services.AddScoped<ICourseCapacityService, CourseCapacityService>();
