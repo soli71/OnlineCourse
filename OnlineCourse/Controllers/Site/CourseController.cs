@@ -34,14 +34,17 @@ public class CourseController : BaseController
     private readonly ApplicationDbContext _context;
     private readonly IMinioService _minioService;
     private readonly ICourseCapacityService _courseCapacityService;
+    private readonly IConfiguration _configuration;
 
     public CourseController(ApplicationDbContext context,
                             IMinioService minioService,
-                            ICourseCapacityService courseCapacityService)
+                            ICourseCapacityService courseCapacityService,
+                            IConfiguration configuration)
     {
         _context = context;
         _minioService = minioService;
         _courseCapacityService = courseCapacityService;
+        _configuration = configuration;
     }
 
     // GET: api/PanelUsers
@@ -85,7 +88,7 @@ public class CourseController : BaseController
         if (!string.IsNullOrEmpty(course.PreviewVideoName))
         {
             //video = await _minioService.GetFileUrlAsync("course", course.PreviewVideoName);
-            video = $"https://minio-nnw4iz.chbk.app/course/{course.PreviewVideoName}";
+            video = $"https://{_configuration["MinIO:Endpoint"]}/course/{course.PreviewVideoName}";
         }
         var courseCapacity = await _courseCapacityService.ExistCourseCapacityAsync(course.Id);
 

@@ -109,10 +109,11 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<BearerTokenOptions>, CustomBearerTokenOption>());
+
 builder.Services.AddMinio(c =>
 {
-    c.WithEndpoint("minio.chbk.app");
-    c.WithCredentials("qluHNnovlTLh9zs4R0BR4G4UlroPMTef", "a6jvqg6wQwbendIMFZcEum35lTZrbIiO");
+    c.WithEndpoint(builder.Configuration["MinIO:Endpoint"]);
+    c.WithCredentials(builder.Configuration["MinIO:AccessKey"], builder.Configuration["MinIO:SecretKey"]);
 });
 builder.Services.AddScoped<IMinioService, MinioService>();
 builder.Services.AddScoped<ICourseCapacityService, CourseCapacityService>();
@@ -182,34 +183,34 @@ builder.Services.AddOutputCache();
 builder.Services.AddHttpClient();
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
-    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var adminRole = new Role { Name = "Admin" };
-    var userRole = new Role { Name = "User" };
-    var panelRole = new Role { Name = "Panel" };
-    if (!context.Roles.Any())
-    {
-        roleManager.CreateAsync(adminRole).Wait();
-        roleManager.CreateAsync(userRole).Wait();
-        roleManager.CreateAsync(panelRole).Wait();
-    }
-    if (!context.Users.Any(c => c.Type == UserType.Admin))
-    {
-        var adminUser = new User
-        {
-            UserName = "Admin@Panel.com",
-            PhoneNumber = "09338181361",
-            Type = UserType.Admin,
-            PhoneNumberConfirmed = true,
-            EmailConfirmed = true
-        };
-        userManager.CreateAsync(adminUser, "Admin@123").Wait();
-        userManager.AddToRoleAsync(adminUser, "Admin").Wait();
-    }
-}
+//using (var scope = app.Services.CreateScope())
+//{
+//    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+//    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+//    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+//    var adminRole = new Role { Name = "Admin" };
+//    var userRole = new Role { Name = "User" };
+//    var panelRole = new Role { Name = "Panel" };
+//    if (!context.Roles.Any())
+//    {
+//        roleManager.CreateAsync(adminRole).Wait();
+//        roleManager.CreateAsync(userRole).Wait();
+//        roleManager.CreateAsync(panelRole).Wait();
+//    }
+//    if (!context.Users.Any(c => c.Type == UserType.Admin))
+//    {
+//        var adminUser = new User
+//        {
+//            UserName = "Admin@Panel.com",
+//            PhoneNumber = "09338181361",
+//            Type = UserType.Admin,
+//            PhoneNumberConfirmed = true,
+//            EmailConfirmed = true
+//        };
+//        userManager.CreateAsync(adminUser, "Admin@123").Wait();
+//        userManager.AddToRoleAsync(adminUser, "Admin").Wait();
+//    }
+//}
 
 app.UseOutputCache();
 if (app.Environment.IsDevelopment())
@@ -219,12 +220,6 @@ if (app.Environment.IsDevelopment())
     //app.MapScalarApiReference();
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-;
 if (enableRateLimit)
     app.UseRateLimiter();
 
