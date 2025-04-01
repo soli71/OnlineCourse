@@ -30,8 +30,11 @@ public class CourseCapacityService : ICourseCapacityService
         var totalCourseOrder = await _context.OrderDetails
             .Where(x => x.CourseId == courseId &&
                    (x.Order.Status == OrderStatus.Paid ||
-                   (x.Order.Status == OrderStatus.Pending &&
-                    x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
+                   (x.Order.Status == OrderStatus.Pending
+                    //&&
+                    // x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow
+                    ))
+                    )
             .CountAsync();
 
         return totalCourseOrder < course.Limit;
