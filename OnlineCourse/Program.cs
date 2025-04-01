@@ -1,8 +1,4 @@
 ﻿using Microsoft.AspNetCore.Authentication.BearerToken;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -12,10 +8,7 @@ using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Site;
 using OnlineCourse.Entities;
 using OnlineCourse.Identity;
-using OnlineCourse.RateLimiters;
 using OnlineCourse.Services;
-using System.Diagnostics;
-using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 
@@ -24,7 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 300 * 1024 * 1024;
+    options.Limits.MaxRequestBodySize = 1000 * 1024 * 1024;
 });
 
 builder.Services.AddControllers();
