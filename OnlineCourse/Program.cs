@@ -206,12 +206,12 @@ var app = builder.Build();
 //}
 
 app.UseOutputCache();
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    //app.MapScalarApiReference();
-}
+//if (app.Environment.IsDevelopment())
+//{
+app.UseSwagger();
+app.UseSwaggerUI();
+//app.MapScalarApiReference();
+//}
 
 if (enableRateLimit)
     app.UseRateLimiter();
