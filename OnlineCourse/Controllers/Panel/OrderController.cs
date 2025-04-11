@@ -174,6 +174,10 @@ public class OrderController : BaseController
 
                 var user = _context.Users.FirstOrDefault(c => c.Id == order.UserId);
 
+                if (string.IsNullOrEmpty(course.SpotPlayerCourseId))
+
+                    return NotFoundB("شناسه اسپات پلیر دوره یافت نشد ");
+
                 var spotPlayer = await _spotPlayerService.GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, true);
                 if (spotPlayer.IsSuccess)
                 {

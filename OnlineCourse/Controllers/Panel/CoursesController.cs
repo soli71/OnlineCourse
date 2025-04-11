@@ -21,7 +21,7 @@ public record CourseUpdateDto
     public int DurationTime { get; init; }
     public string SpotPlayerCourseId { get; init; }
     public byte Limit { get; init; }
-    public int FakeStudentsCount { get; init; }
+    public int FakeStudentCount { get; init; }
     public bool IsPublish { get; init; }
 }
 
@@ -136,7 +136,7 @@ public class CourseController : BaseController
         course.SpotPlayerCourseId = courseUpdateDto.SpotPlayerCourseId;
         course.DurationTime = courseUpdateDto.DurationTime;
         course.Limit = courseUpdateDto.Limit;
-        course.FakeStudentsCount = courseUpdateDto.FakeStudentsCount;
+        course.FakeStudentsCount = courseUpdateDto.FakeStudentCount;
         course.IsPublish = courseUpdateDto.IsPublish;
         if (courseUpdateDto.Image != null)
         {
