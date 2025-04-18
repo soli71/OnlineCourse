@@ -1,13 +1,21 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Azure;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OnlineCourse.Entities;
+using System;
 
 namespace OnlineCourse.Contexts;
 
 public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim, UserRole, UserLogin, RoleClaim, UserToken>
 {
-    public DbSet<Course> Courses { get; set; }
+    public DbSet<Product> Products { get; set; }
+
+    public DbSet<License> Licenses { get; set; }
     public DbSet<Order> Orders { get; set; }
     public DbSet<OrderDetails> OrderDetails { get; set; }
     public DbSet<Cart> Carts { get; set; }
@@ -60,5 +68,69 @@ public class BlogConfiguration : IEntityTypeConfiguration<Blog>
     public void Configure(EntityTypeBuilder<Blog> builder)
     {
         builder.HasIndex(builder => builder.Slug).IsUnique();
+    }
+}
+
+public class LicenseConfiguration : IEntityTypeConfiguration<License>
+{
+    public void Configure(EntityTypeBuilder<License> builder)
+    {
+        builder.HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ProductConfiguration : IEntityTypeConfiguration<Product>
+{
+    public void Configure(EntityTypeBuilder<Product> builder)
+    {
+        builder.HasDiscriminator<string>("ProductType")
+               .HasValue<Course>("Course")
+               .HasValue<PhysicalProduct>("PhysicalProduct");
+    }
+}
+
+public class AuditInterceptor : SaveChangesInterceptor
+{
+    public override InterceptionResult<int> SavingChanges(
+           DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        UpdateEntities(eventData.Context);
+
+        return base.SavingChanges(eventData, result);
+    }
+
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        UpdateEntities(eventData.Context);
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    public void UpdateEntities(DbContext? context)
+    {
+        if (context is ApplicationDbContext dbContext)
+        {
+            var entries = dbContext.ChangeTracker.Entries()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+            foreach (var entry in entries)
+            {
+                if (entry.State == EntityState.Added && entry.Entity is ICreatedAudit auditableEntity)
+                {
+                    auditableEntity.CreatedAt = DateTime.UtcNow;
+
+                    //auditableEntity.LastModifiedDate = DateTime.UtcNow;
+                }
+                else if (entry.State == EntityState.Modified && entry.Entity is IModifiedAudit modifiedEntity)
+                {
+                    modifiedEntity.ModifiedAt = DateTime.UtcNow;
+
+                    //auditableEntity.LastModifiedDate = DateTime.UtcNow;
+                }
+            }
+        }
     }
 }

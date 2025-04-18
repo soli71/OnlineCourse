@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
+using OnlineCourse.Entities;
 using System.Net.Quic;
 
 namespace OnlineCourse.Controllers.Panel;
@@ -19,32 +20,54 @@ public class UserCourseController : BaseController
     }
 
     [HttpGet("{userId}")]
-    public async Task<IActionResult> GetAllUserCourses([FromRoute]int userId,[FromQuery]PagedRequest pagedRequest)
+    public async Task<IActionResult> GetAllUserCourses(
+    [FromRoute] int userId,
+    [FromQuery] PagedRequest pagedRequest)
     {
-        var query= _applicationDbContext.OrderDetails.Include(x => x.Order).Where(x => x.Order.UserId == userId && x.Order.Status == Entities.OrderStatus.Paid).AsQueryable();
+        // ۱) شامل کردن Order و Product و فقط جزئیات دوره‌ها (Discriminator = "Course")
+        var query = _applicationDbContext.OrderDetails
+            .Include(od => od.Order)
+            .Include(od => od.Product)
+            .Where(od => od.Order.UserId == userId
+                      && od.Order.Status == OrderStatus.Paid
+                      && od.Product is Course)
+            .AsQueryable();
 
+        // ۲) فیلتر جستجو روی نام دوره (cast به Course)
         if (!string.IsNullOrEmpty(pagedRequest.Search))
         {
-            query = query.Where(x => x.Course.Name.Contains(pagedRequest.Search));
+            query = query.Where(od =>
+                ((Course)od.Product).Name.Contains(pagedRequest.Search));
         }
+
+        // ۳) شمارش کل
         var totalCount = await query.CountAsync();
-        query = query.Skip((pagedRequest.PageNumber - 1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
-        var userCourses = query
-            
-            .Select(x => new GetAllUserCoursesDto(
-                x.Course.Id,
-                x.Course.Name,
-                x.Course.Price,
-                x.License,
-                x.Key
-            ))
+
+        // ۴) صفحه‌بندی و Select نهایی
+        var items = await query
+            .Skip((pagedRequest.PageNumber - 1) * pagedRequest.PageSize)
+            .Take(pagedRequest.PageSize)
             .ToListAsync();
+
+        var resultItems = items.Select(od =>
+        {
+            var course = (Course)od.Product;
+            return new GetAllUserCoursesDto(
+                Id: course.Id,
+                Name: course.Name,
+                Price: course.Price,
+                License: "od.License",
+                Key: "od.Key"
+            );
+        }).ToList();
+
+        // ۵) برگرداندن پاسخ
         return OkB(new PagedResponse<List<GetAllUserCoursesDto>>
         {
             PageNumber = pagedRequest.PageNumber,
             PageSize = pagedRequest.PageSize,
-            Result = await userCourses,
-            TotalCount = totalCount
+            TotalCount = totalCount,
+            Result = resultItems
         });
     }
 }

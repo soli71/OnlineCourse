@@ -23,7 +23,11 @@ namespace OnlineCourse.Migrations
                     Tags = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsPublish = table.Column<bool>(type: "bit", nullable: false),
-                    Visit = table.Column<int>(type: "int", nullable: false)
+                    Visit = table.Column<int>(type: "int", nullable: false),
+                    Slug = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    MetaTitle = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MetaTagDescription = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MetaKeywords = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -34,9 +38,8 @@ namespace OnlineCourse.Migrations
                 name: "Carts",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<int>(type: "int", nullable: true),
                     Status = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
@@ -45,7 +48,7 @@ namespace OnlineCourse.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Courses",
+                name: "Products",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
@@ -53,17 +56,28 @@ namespace OnlineCourse.Migrations
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    DurationTime = table.Column<int>(type: "int", nullable: false),
-                    ImageFileName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DefaultImageFileName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsPublish = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedBy = table.Column<int>(type: "int", nullable: false),
+                    ModifiedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ModifiedBy = table.Column<int>(type: "int", nullable: false),
+                    ProductType = table.Column<string>(type: "nvarchar(21)", maxLength: 21, nullable: false),
+                    DurationTime = table.Column<int>(type: "int", nullable: true),
                     SpotPlayerCourseId = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     PreviewVideoName = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Limit = table.Column<byte>(type: "tinyint", nullable: false),
-                    FakeStudentsCount = table.Column<int>(type: "int", nullable: false),
-                    IsPublish = table.Column<bool>(type: "bit", nullable: false)
+                    Limit = table.Column<byte>(type: "tinyint", nullable: true),
+                    FakeStudentsCount = table.Column<int>(type: "int", nullable: true),
+                    ImagesPath = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    StockQuantity = table.Column<int>(type: "int", nullable: true),
+                    Slug = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    MetaTitle = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MetaTagDescription = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MetaKeywords = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Courses", x => x.Id);
+                    table.PrimaryKey("PK_Products", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -87,9 +101,30 @@ namespace OnlineCourse.Migrations
                 {
                     Id = table.Column<byte>(type: "tinyint", nullable: false),
                     FooterContent = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PostalCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Map = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     AboutUs = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     TelegramLink = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    InstagramLink = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    InstagramLink = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MainPageContent = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MainPageImage = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    VisibleMainPageContent = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleAboutUs = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleAddress = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleMap = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleEmail = table.Column<bool>(type: "bit", nullable: false),
+                    VisiblePhoneNumber = table.Column<bool>(type: "bit", nullable: false),
+                    VisiblePostalCode = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleTelegramLink = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleInstagramLink = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleFooterContent = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleMainPageImage = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleMainPageBlogs = table.Column<bool>(type: "bit", nullable: false),
+                    VisibleMainPageCourses = table.Column<bool>(type: "bit", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -133,11 +168,12 @@ namespace OnlineCourse.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    CourseId = table.Column<int>(type: "int", nullable: false),
+                    ProductId = table.Column<int>(type: "int", nullable: false),
                     Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    CartId = table.Column<int>(type: "int", nullable: false),
+                    CartId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     IsDelete = table.Column<bool>(type: "bit", nullable: false),
-                    Message = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Quantity = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -149,9 +185,9 @@ namespace OnlineCourse.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_CartItem_Courses_CourseId",
-                        column: x => x.CourseId,
-                        principalTable: "Courses",
+                        name: "FK_CartItem_Products_ProductId",
+                        column: x => x.ProductId,
+                        principalTable: "Products",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -170,9 +206,9 @@ namespace OnlineCourse.Migrations
                 {
                     table.PrimaryKey("PK_CourseSeasons", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_CourseSeasons_Courses_CourseId",
+                        name: "FK_CourseSeasons_Products_CourseId",
                         column: x => x.CourseId,
-                        principalTable: "Courses",
+                        principalTable: "Products",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -337,25 +373,24 @@ namespace OnlineCourse.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     OrderId = table.Column<int>(type: "int", nullable: false),
-                    CourseId = table.Column<int>(type: "int", nullable: false),
-                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    License = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Key = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProductId = table.Column<int>(type: "int", nullable: false),
+                    Quantity = table.Column<int>(type: "int", nullable: false),
+                    UnitPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_OrderDetails", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_OrderDetails_Courses_CourseId",
-                        column: x => x.CourseId,
-                        principalTable: "Courses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
                         name: "FK_OrderDetails_Orders_OrderId",
                         column: x => x.OrderId,
                         principalTable: "Orders",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_OrderDetails_Products_ProductId",
+                        column: x => x.ProductId,
+                        principalTable: "Products",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -383,15 +418,63 @@ namespace OnlineCourse.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "Licenses",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Key = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    OrderDetailId = table.Column<int>(type: "int", nullable: false),
+                    IssuedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ExpirationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    UserId1 = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Licenses", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Licenses_OrderDetails_OrderDetailId",
+                        column: x => x.OrderDetailId,
+                        principalTable: "OrderDetails",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Licenses_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Licenses_Users_UserId1",
+                        column: x => x.UserId1,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.InsertData(
+                table: "SiteSettings",
+                columns: new[] { "Id", "AboutUs", "Address", "Email", "FooterContent", "InstagramLink", "MainPageContent", "MainPageImage", "Map", "PhoneNumber", "PostalCode", "TelegramLink", "Title", "VisibleAboutUs", "VisibleAddress", "VisibleEmail", "VisibleFooterContent", "VisibleInstagramLink", "VisibleMainPageBlogs", "VisibleMainPageContent", "VisibleMainPageCourses", "VisibleMainPageImage", "VisibleMap", "VisiblePhoneNumber", "VisiblePostalCode", "VisibleTelegramLink" },
+                values: new object[] { (byte)1, "درباره ما", "آدرس", "ایمیل", "محتوای فوتر", null, null, null, "نقشه", "شماره تلفن", "کد پستی", null, null, false, false, false, false, false, false, false, false, false, false, false, false, false });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Blogs_Slug",
+                table: "Blogs",
+                column: "Slug",
+                unique: true,
+                filter: "[Slug] IS NOT NULL");
+
             migrationBuilder.CreateIndex(
                 name: "IX_CartItem_CartId",
                 table: "CartItem",
                 column: "CartId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_CartItem_CourseId",
+                name: "IX_CartItem_ProductId",
                 table: "CartItem",
-                column: "CourseId");
+                column: "ProductId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CourseSeasons_CourseId",
@@ -404,14 +487,29 @@ namespace OnlineCourse.Migrations
                 column: "CourseSeasonId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OrderDetails_CourseId",
-                table: "OrderDetails",
-                column: "CourseId");
+                name: "IX_Licenses_OrderDetailId",
+                table: "Licenses",
+                column: "OrderDetailId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Licenses_UserId",
+                table: "Licenses",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Licenses_UserId1",
+                table: "Licenses",
+                column: "UserId1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_OrderDetails_OrderId",
                 table: "OrderDetails",
                 column: "OrderId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OrderDetails_ProductId",
+                table: "OrderDetails",
+                column: "ProductId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Orders_UserId",
@@ -422,6 +520,13 @@ namespace OnlineCourse.Migrations
                 name: "IX_OrderStatusHistories_OrderId",
                 table: "OrderStatusHistories",
                 column: "OrderId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_Slug",
+                table: "Products",
+                column: "Slug",
+                unique: true,
+                filter: "[Slug] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_RoleClaims_RoleId",
@@ -476,7 +581,7 @@ namespace OnlineCourse.Migrations
                 name: "HeadLines");
 
             migrationBuilder.DropTable(
-                name: "OrderDetails");
+                name: "Licenses");
 
             migrationBuilder.DropTable(
                 name: "OrderStatusHistories");
@@ -506,13 +611,16 @@ namespace OnlineCourse.Migrations
                 name: "CourseSeasons");
 
             migrationBuilder.DropTable(
-                name: "Orders");
+                name: "OrderDetails");
 
             migrationBuilder.DropTable(
                 name: "Roles");
 
             migrationBuilder.DropTable(
-                name: "Courses");
+                name: "Orders");
+
+            migrationBuilder.DropTable(
+                name: "Products");
 
             migrationBuilder.DropTable(
                 name: "Users");

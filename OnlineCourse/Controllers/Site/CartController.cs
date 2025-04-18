@@ -1,39 +1,48 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Humanizer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Entities;
 using OnlineCourse.Services;
+using System;
+using System.Linq.Expressions;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
 
 public class CreateCartDto
 {
-    public int CourseId { get; set; }
+    public string CartId { get; set; }
+    public int ProductId { get; set; }
 
-    public CreateCartDto(int courseId)
+    public int Quantity { get; set; }
+
+    public CreateCartDto(int productId)
     {
-        CourseId = courseId;
+        ProductId = productId;
     }
 }
 
 public class CartItemDto
 {
-    public int CourseId { get; set; }
+    public int ProductId { get; set; }
     public string Name { get; set; }
     public decimal Price { get; set; }
     public string Message { get; set; }
     public string Image { get; set; }
+    public int Quantity { get; set; }
 
-    public CartItemDto(int courseId, string name, decimal price, string message = null, string image = null)
+    public CartItemDto(int productId, string name, decimal price, int quantity, string message = null, string image = null)
     {
-        CourseId = courseId;
+        ProductId = productId;
         Name = name;
         Price = price;
         Message = message;
         Image = image;
+        Quantity = quantity;
     }
 }
 
@@ -53,7 +62,6 @@ public class CartDto
 
 [ApiController]
 [Route("api/site/[controller]")]
-[Authorize(Roles = "User")]
 public class CartController : BaseController
 {
     private readonly IMinioService _minioService;
@@ -70,26 +78,45 @@ public class CartController : BaseController
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] CreateCartDto createCartDto)
     {
-        var user = HttpContext.User;
-        var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
+        var product = _context.Products.FirstOrDefault(c => c.Id == createCartDto.ProductId);
+        if (product is null)
+            return NotFoundB("محصول مورد نظر یافت نشد");
 
-        var course = _context.Courses.FirstOrDefault(c => c.Id == createCartDto.CourseId && c.IsPublish);
-        if (course is null)
-            return NotFoundB("دوره مورد نظر یافت نشد");
+        Expression<Func<Cart, bool>> func = c => c.Id == Guid.Empty;
 
-        var cart = await _context.Carts.Include(c => c.CartItems).FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatus.Active);
+        if (!string.IsNullOrEmpty(createCartDto.CartId))
+        {
+            Guid.TryParse(createCartDto.CartId, out var cartId);
+            if (cartId == Guid.Empty)
+                return BadRequestB("شناسه سبد خرید نامعتبر است");
+            func = x => x.Id == cartId && x.Status == CartStatus.Active;
+        }
+        else
+        {
+            if (HttpContext.User.Identity.IsAuthenticated)
+            {
+                var user = HttpContext.User;
+                int.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId);
+                func = x => x.UserId == userId && x.Status == CartStatus.Active;
+            }
+        }
+
+        var cart = await _context.Carts.Include(c => c.CartItems)
+            .FirstOrDefaultAsync(func);
+
         if (cart is null)
         {
             cart = new Cart
             {
-                UserId = userId,
+                //UserId = userId,
                 Status = CartStatus.Active,
                 CartItems = new List<CartItem>
                 {
                     new CartItem
                     {
-                        CourseId = createCartDto.CourseId,
-                        Price = course.Price
+                        ProductId = createCartDto.ProductId,
+                        Price = product.Price,
+                        Quantity=createCartDto.Quantity
                     }
                 }
             };
@@ -97,52 +124,107 @@ public class CartController : BaseController
         }
         else
         {
-            if (cart.CartItems.Any(x => x.CourseId == createCartDto.CourseId))
+            if (product is Course course)
             {
-                return BadRequestB("این دوره قبلا به سبد خرید اضافه شده است");
+                if (cart.CartItems.Any(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete))
+                    return BadRequestB("این دوره در سبد خرید شما موجود می باشد.");
+                if (!course.IsPublish)
+                    return BadRequestB("دوره مورد نظر در دسترس نیست");
+                if (!await _courseCapacityService.ExistCourseCapacityAsync(course.Id))
+                    return BadRequestB("ظرفیت دوره تکمیل می‌باشد");
             }
+            else if (product is PhysicalProduct phys)
+            {
+                if (cart.CartItems.Any(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete))
+                    cart.CartItems.FirstOrDefault(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete).Quantity += createCartDto.Quantity;
+                if (phys.StockQuantity <= 0)
+                    return BadRequestB("موجودی محصول کافی نیست");
+            }
+
             cart.CartItems.Add(new CartItem
             {
-                CourseId = createCartDto.CourseId,
-                Price = course.Price
+                ProductId = product.Id,
+                Quantity = createCartDto.Quantity,
+                Price = product.Price
             });
         }
 
         await _context.SaveChangesAsync();
-        return OkB();
+        return OkB(new { CartId = cart.Id.ToString() });
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Get()
+    [HttpGet()]
+    public async Task<IActionResult> Get(string id)
     {
-        var user = HttpContext.User;
-        var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
+        Expression<Func<Cart, bool>> func = c => c.Id == Guid.Empty;
+
+        if (!string.IsNullOrEmpty(id))
+        {
+            Guid.TryParse(id, out var cartId);
+            if (cartId == Guid.Empty)
+                return BadRequestB("شناسه سبد خرید نامعتبر است");
+            func = x => x.Id == cartId && x.Status == CartStatus.Active;
+        }
+        else
+        {
+            if (HttpContext.User.Identity.IsAuthenticated)
+            {
+                var user = HttpContext.User;
+                int.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId);
+                func = x => x.UserId == userId && x.Status == CartStatus.Active;
+            }
+        }
 
         var cart = await _context.Carts
             .Include(x => x.CartItems.Where(c => !c.IsDelete))
-            .ThenInclude(x => x.Course)
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatus.Active);
+            .ThenInclude(x => x.Product)
+            .FirstOrDefaultAsync(func);
 
-        if (cart is null)
-        {
-            return OkB(null);
-        }
+        if (cart == null || !cart.CartItems.Any())
+            return OkB(new CartDto(new List<CartItemDto>(), 0m, 0m));
 
-        foreach (var cartItem in cart.CartItems)
+        decimal totalPrice = 0m;
+        var items = new List<CartItemDto>();
+
+        foreach (var ci in cart.CartItems)
         {
-            var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == cartItem.CourseId && c.IsPublish);
-            if (course is null)
+            var prod = ci.Product;
+            string message = null;
+
+            if (prod is Course crs)
             {
-                cartItem.Message = "این دوره غیرفعال می باشد";
-                cartItem.IsDelete = true;
+                if (!crs.IsPublish)
+                    message = "این دوره غیرفعال شده است";
+                else if (!await _courseCapacityService.ExistCourseCapacityAsync(crs.Id))
+                    message = "ظرفیت دوره تکمیل است";
+            }
+            else if (prod is PhysicalProduct pp)
+            {
+                if (pp.StockQuantity < ci.Quantity)
+                    message = "موجودی محصول کافی نیست";
             }
 
-            var capacity = await _courseCapacityService.ExistCourseCapacityAsync(course.Id);
-            if (!capacity)
+            // حذف یا علامت‌گذاری آیتم ناقص
+            if (message != null)
             {
-                cartItem.Message = "ظرفیت دوره تکمیل می باشد";
-                cartItem.IsDelete = true;
+                ci.IsDelete = true;
             }
+            else
+            {
+                totalPrice += ci.Price * ci.Quantity;
+            }
+
+            var imageUrl = prod.DefaultImageFileName != null
+                ? await _minioService.GetFileUrlAsync(prod is Course ? "course" : "physical", prod.DefaultImageFileName)
+                : null;
+
+            items.Add(new CartItemDto(
+                prod.Id,
+                prod.Name,
+                ci.Price,
+                ci.Quantity,
+                message,
+                imageUrl));
         }
 
         if (cart.CartItems.All(x => x.IsDelete))
@@ -152,28 +234,56 @@ public class CartController : BaseController
 
         await _context.SaveChangesAsync();
 
-        var discount = 0;
-        var cartDto = new CartDto(cart.CartItems.Select(x => new CartItemDto(x.CourseId, x.Course.Name, x.Price, x.Message, _minioService.GetFileUrlAsync("course", x.Course.ImageFileName).Result)).ToList(), discount, cart.CartItems.Sum(c => c.Price) - discount);
-        return OkB(cartDto);
+        if (cart.CartItems.All(ci => ci.IsDelete))
+        {
+            cart.Status = CartStatus.Close;
+        }
+
+        await _context.SaveChangesAsync();
+
+        var discount = 0m; // در صورت داشتن کد تخفیف و غیره
+        var dto = new CartDto(items, discount, totalPrice - discount);
+        return OkB(dto);
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+        var cart = await _context.Carts
+            .Include(c => c.CartItems)
+            .FirstOrDefaultAsync(c => c.UserId == userId && c.Status == CartStatus.Active);
+        if (cart == null)
+            return NotFoundB("سبد خرید شما خالی است");
+
+        var item = cart.CartItems.FirstOrDefault(ci => ci.ProductId == id && !ci.IsDelete);
+        if (item == null)
+            return NotFoundB("محصول مورد نظر در سبد وجود ندارد");
+
+        item.IsDelete = true;
+        await _context.SaveChangesAsync();
+        return OkB();
+    }
+
+    [HttpPatch("{id}/assign-to-user")]
+    [Authorize(Roles = "User")]
+    public async Task<IActionResult> AssignCartToUser(string id)
+    {
         var user = HttpContext.User;
         var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
-        var cart = await _context.Carts.Include(x => x.CartItems).FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatus.Active);
-        if (cart is null)
+        var cart = await _context.Carts
+            .FirstOrDefaultAsync(c => c.Id == Guid.Parse(id) && c.Status == CartStatus.Active);
+        if (cart == null)
+            return NotFoundB("سبد خرید مورد نظر یافت نشد");
+        if (cart.UserId == null)
         {
-            return NotFoundB("سبد خرید شما خالی می باشد");
+            cart.UserId = userId;
+            await _context.SaveChangesAsync();
         }
-        var cartItem = cart.CartItems.FirstOrDefault(x => x.CourseId == id);
-        if (cartItem is null)
-        {
-            return NotFoundB("دوره مورد نظر یافت نشد");
-        }
-        cart.CartItems.Remove(cartItem);
-        await _context.SaveChangesAsync();
+        else if (cart.UserId != userId)
+            return BadRequestB("سبد خرید متعلق به کاربر دیگری است");
+
         return OkB();
     }
 }

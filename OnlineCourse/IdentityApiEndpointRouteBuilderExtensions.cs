@@ -45,7 +45,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         // We'll figure out a unique endpoint name based on the final route pattern during endpoint generation.
         string confirmEmailEndpointName = null;
 
-        var routeGroup = endpoints.MapGroup("account");
+        var routeGroup = endpoints.MapGroup("account").WithOpenApi();
 
         routeGroup.MapPost("site/register", async Task<Results<Ok, ValidationProblem>>
            ([FromBody] Models.RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
@@ -314,7 +314,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Ok();
         });
 
-        var accountGroup = routeGroup.MapGroup("site/manage").RequireAuthorization();
+        var accountGroup = routeGroup.MapGroup("site/manage").WithOpenApi().RequireAuthorization();
 
         accountGroup.MapGet("site/info", async Task<Results<Ok<Models.InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
@@ -360,7 +360,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Ok(await CreateInfoResponseAsync(user, userManager));
         });
 
-        var panelGroup = routeGroup.MapGroup("/panel");
+        var panelGroup = routeGroup.MapGroup("/panel").WithOpenApi();
 
         panelGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
          ([FromBody] PanelLoginRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>

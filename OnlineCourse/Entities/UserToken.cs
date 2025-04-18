@@ -14,4 +14,3 @@ public class Currency
     public string Symbol { get; set; }
     public decimal Rate { get; set; }
 }
-

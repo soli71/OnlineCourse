@@ -32,7 +32,6 @@ public class GetAllOrdersDto
     public string OrderCode { get; init; }
     public string UserPhoneNumber { get; init; }
     public string Status { get; init; }
-    public string PaymentMethod { get; init; }
     public decimal TotalPrice { get; init; }
     public string OrderDate { get; init; }
 }
@@ -43,7 +42,6 @@ public class GetOrderDto
     public string OrderCode { get; init; }
     public string UserPhoneNumber { get; init; }
     public string Status { get; init; }
-    public string PaymentMethod { get; init; }
     public decimal TotalPrice { get; init; }
     public string OrderDate { get; init; }
     public List<GetOrderDetailsDto> OrderDetails { get; init; }
@@ -52,10 +50,13 @@ public class GetOrderDto
 public class GetOrderDetailsDto
 {
     public int Id { get; init; }
-    public string CourseName { get; init; }
-    public decimal Price { get; init; }
-    public string License { get; init; }
-    public string Key { get; init; }
+    public string ProductName { get; init; }
+    public string ProductType { get; init; }
+    public int Quantity { get; init; }
+    public decimal UnitPrice { get; init; }
+    public string License { get; init; }        // for Course
+    public string Key { get; init; }            // spot-player license ID
+    public string ShippingStatus { get; init; } // for PhysicalProduct
 }
 
 public class ChangeStatusDto
@@ -76,7 +77,10 @@ public class OrderController : BaseController
     private readonly ISpotPlayerService _spotPlayerService;
     private readonly ISmsService _smsService;
 
-    public OrderController(ApplicationDbContext context, ISpotPlayerService spotPlayerService, ISmsService smsService)
+    public OrderController(
+        ApplicationDbContext context,
+        ISpotPlayerService spotPlayerService,
+        ISmsService smsService)
     {
         _context = context;
         _spotPlayerService = spotPlayerService;
@@ -89,127 +93,181 @@ public class OrderController : BaseController
         var query = _context.Orders.AsQueryable();
 
         if (!string.IsNullOrEmpty(pagedRequest.Search))
-            query = query.Where(c => c.User.PhoneNumber.Contains(pagedRequest.Search) || c.OrderCode.Contains(pagedRequest.Search));
-
-        var totalCount = query.Count();
-        query = query.OrderByDescending(c => c.OrderDate).Skip((pagedRequest.PageNumber - 1) * pagedRequest.PageSize).Take(pagedRequest.PageSize);
-        var result = await query.Select(c => new GetAllOrdersDto
         {
-            Status = c.Status.GetDisplayValue(),
-            UserPhoneNumber = c.User.PhoneNumber,
-            OrderDate = c.OrderDate.ToPersianDateTime(),
-            Id = c.Id,
-            TotalPrice = c.TotalPrice,
-            OrderCode = c.OrderCode
-        }).ToListAsync();
+            query = query.Where(o => o.User.PhoneNumber.Contains(pagedRequest.Search)
+                                    || o.OrderCode.Contains(pagedRequest.Search));
+        }
+
+        var totalCount = await query.CountAsync();
+        var orders = await query
+            .OrderByDescending(o => o.OrderDate)
+            .Skip((pagedRequest.PageNumber - 1) * pagedRequest.PageSize)
+            .Take(pagedRequest.PageSize)
+            .Select(o => new GetAllOrdersDto
+            {
+                Id = o.Id,
+                UserPhoneNumber = o.User.PhoneNumber,
+                Status = o.Status.GetDisplayValue(),
+                OrderCode = o.OrderCode,
+                OrderDate = o.OrderDate.ToPersianDateTime(),
+                TotalPrice = o.TotalPrice
+            })
+            .ToListAsync();
 
         var response = new PagedResponse<List<GetAllOrdersDto>>
         {
             PageNumber = pagedRequest.PageNumber,
             PageSize = pagedRequest.PageSize,
-            Result = result,
-            TotalCount = totalCount
+            TotalCount = totalCount,
+            Result = orders
         };
+
         return OkB(response);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetOrder(int id)
     {
-        var order = await _context.Orders.Include(c => c.OrderDetails).ThenInclude(c => c.Course).Include(c => c.User).FirstOrDefaultAsync(c => c.Id == id);
-        if (order == null)
-        {
-            return NotFoundB("سفارش مورد نظر یافت نشد");
-        }
+        var order = await _context.Orders
+            .Include(o => o.OrderDetails)
+                .ThenInclude(od => od.Product)
+            .Include(o => o.User)
+            .FirstOrDefaultAsync(o => o.Id == id);
 
-        return OkB(new GetOrderDto
+        if (order == null)
+            return NotFoundB("سفارش مورد نظر یافت نشد");
+
+        var details = order.OrderDetails.Select(od => new GetOrderDetailsDto
+        {
+            Id = od.Id,
+            ProductName = od.Product.Name,
+            ProductType = od.Product switch
+            {
+                Course _ => "Course",
+                PhysicalProduct _ => "PhysicalProduct",
+                _ => "Unknown"
+            },
+            Quantity = od.Quantity,
+            UnitPrice = od.UnitPrice,
+        }).ToList();
+
+        var dto = new GetOrderDto
         {
             Id = order.Id,
             UserPhoneNumber = order.User.PhoneNumber,
             Status = order.Status.GetDisplayValue(),
             OrderCode = order.OrderCode,
-            //PaymentMethod = order.PaymentMethod.ToString(),
-            TotalPrice = order.TotalPrice,
             OrderDate = order.OrderDate.ToPersianDateTime(),
-            OrderDetails = order.OrderDetails.Select(c => new GetOrderDetailsDto
-            {
-                CourseName = c.Course.Name,
-                Id = c.Id,
-                Key = c.Key,
-                License = c.License,
-                Price = c.Price,
-            }).ToList()
-        });
+            TotalPrice = order.TotalPrice,
+            OrderDetails = details
+        };
+
+        return OkB(dto);
     }
 
     [HttpPatch("{id}/change-status")]
     public async Task<IActionResult> ChangeStatus(int id, ChangeStatusDto changeStatusDto)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders
+            .Include(o => o.OrderDetails)
+                .ThenInclude(od => od.Product)
+            .FirstOrDefaultAsync(o => o.Id == id);
+
         if (order == null)
-        {
             return NotFoundB("سفارش مورد نظر یافت نشد");
-        }
+
         if (order.Status == OrderStatus.Paid)
-        {
             return BadRequestB("این سفارش قبلا پرداخت شده است");
-        }
+
         if (changeStatusDto.Status == OrderStatus.Paid)
         {
-            var orderDetails = await _context.OrderDetails.Where(c => c.OrderId == id).ToListAsync();
-            foreach (var orderDetail in orderDetails)
+            foreach (var od in order.OrderDetails)
             {
-                var course = await _context.Courses.FindAsync(orderDetail.CourseId);
-
-                if (course.Limit > 0)
+                switch (od.Product)
                 {
-                    var totalCourseOrder = await _context.OrderDetails
-                        .Where(x => x.CourseId == orderDetail.CourseId && (x.Order.Status == OrderStatus.Paid || (x.Order.Status == OrderStatus.Pending && x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
-                        .CountAsync();
-                    if (totalCourseOrder > course.Limit)
-                    {
-                        return BadRequestB("ظرفیت دوره تکمیل می باشد");
-                    }
+                    case Course course:
+                        // Check capacity
+                        if (course.Limit > 0)
+                        {
+                            var inFlight = await _context.OrderDetails
+                                .Where(x => x.ProductId == od.ProductId &&
+                                           (x.Order.Status == OrderStatus.Paid ||
+                                            (x.Order.Status == OrderStatus.Pending &&
+                                             x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
+                                .CountAsync();
+
+                            if (inFlight > course.Limit)
+                                return BadRequestB("ظرفیت دوره تکمیل می باشد");
+                        }
+
+                        // Issue license
+                        if (string.IsNullOrEmpty(course.SpotPlayerCourseId))
+                            return NotFoundB("شناسه اسپات پلیر دوره یافت نشد");
+
+                        var user = await _context.Users.FindAsync(order.UserId);
+                        var spotResult = await _spotPlayerService
+                            .GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, true);
+
+                        if (spotResult.IsSuccess)
+                        {
+                            var licenseEntry = new License
+                            {
+                                Key = spotResult.Result.Key,
+                                UserId = order.UserId,
+                                OrderDetailId = od.Id,
+                                IssuedDate = DateTime.UtcNow,
+                                ExpirationDate = null,
+                                Status = LicenseStatus.Active
+                            };
+                            _context.Licenses.Add(licenseEntry);
+                        }
+                        else
+                        {
+                            od.Description += $" {spotResult.Description}";
+                        }
+
+                        await _smsService.SendCoursePaidSuccessfully(user.PhoneNumber, course.Name);
+                        break;
+
+                    case PhysicalProduct product:
+                        // Stock check and decrement
+                        if (product.StockQuantity < od.Quantity)
+                            return BadRequestB($"موجودی محصول {product.Name} کافی نیست");
+
+                        product.StockQuantity -= od.Quantity;
+                        //await _smsService.SendPhysicalProductShippingNotice(
+                        //    order.User.PhoneNumber, product.Name, od.Quantity);
+                        break;
+
+                    default:
+                        return BadRequestB("نوع محصول ناشناخته است");
                 }
 
-                var user = _context.Users.FirstOrDefault(c => c.Id == order.UserId);
-
-                if (string.IsNullOrEmpty(course.SpotPlayerCourseId))
-
-                    return NotFoundB("شناسه اسپات پلیر دوره یافت نشد ");
-
-                var spotPlayer = await _spotPlayerService.GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, true);
-                if (spotPlayer.IsSuccess)
-                {
-                    orderDetail.License = spotPlayer.Result.Key;
-                    orderDetail.Key = spotPlayer.Result.Id;
-                }
-                else
-                {
-                    orderDetail.Description += $" {spotPlayer.Description}";
-                }
-                _context.SaveChanges();
-                await _smsService.SendCoursePaidSuccessfully(user.PhoneNumber, course.Name);
+                await _context.SaveChangesAsync();
             }
         }
+
         order.Status = changeStatusDto.Status;
-        var orderStatusHistory = new OrderStatusHistory
+        _context.OrderStatusHistories.Add(new OrderStatusHistory
         {
             OrderId = order.Id,
             Status = changeStatusDto.Status,
             Description = changeStatusDto.Description,
             UserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)),
             Date = DateTime.UtcNow
-        };
-        _context.OrderStatusHistories.Add(orderStatusHistory);
-        _context.SaveChanges();
+        });
+
+        await _context.SaveChangesAsync();
         return OkB();
     }
 
     [HttpGet("status")]
-    [OutputCache(Duration = 60, Tags = [CacheTag.General])]
+    [OutputCache(Duration = 60, Tags = new[] { CacheTag.General })]
     public IActionResult GetOrderStatus()
     {
-        return OkB(Enum.GetValues<OrderStatus>().Cast<OrderStatus>().Select(c => new { Value = (int)c, DisplayName = c.GetDisplayValue() }));
+        var statuses = Enum.GetValues<OrderStatus>()
+            .Select(s => new { Value = (int)s, DisplayName = s.GetDisplayValue() });
+
+        return OkB(statuses);
     }
 }

@@ -1,7 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
 using Minio;
 using OnlineCourse;
 using OnlineCourse.Contexts;
@@ -9,6 +12,7 @@ using OnlineCourse.Controllers.Site;
 using OnlineCourse.Entities;
 using OnlineCourse.Identity;
 using OnlineCourse.Services;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 
@@ -23,60 +27,59 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 
+//builder.Services.AddOpenApi();
 builder.Services.AddScoped<ISmsService, SmsService>();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    // 1. دو سند مجزا: site و panel
+    c.SwaggerDoc("site", new OpenApiInfo { Title = "Site APIs", Version = "v1" });
+    c.SwaggerDoc("panel", new OpenApiInfo { Title = "Panel APIs", Version = "v1" });
+
+    // 2. فیلتر بر اساس بخشِ route
+    c.DocInclusionPredicate((docName, apiDesc) =>
     {
-        Title = "My API",
-        Version = "v1",
-        Description = "API documentation for My API",
-        TermsOfService = new Uri("https://example.com/terms"),
-        Contact = new Microsoft.OpenApi.Models.OpenApiContact
+        var path = apiDesc.RelativePath?.ToLower() ?? "";
+
+        return docName switch
         {
-            Name = "Support",
-            Email = "support@example.com",
-            Url = new Uri("https://example.com/support")
-        },
-        License = new Microsoft.OpenApi.Models.OpenApiLicense
-        {
-            Name = "Use under LICX",
-            Url = new Uri("https://example.com/license")
-        }
+            "site" => path.Contains("site"),    // فقط endpoints با api/site/…
+            "panel" => path.Contains("panel"),       // یا panel/…
+            _ => false
+        };
     });
 
+    // ۳. بقیهٔ تنظیماتِ عمومی (security, schema ids, …)
     c.CustomSchemaIds(type => type.FullName);
-
-    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
+        Description = "JWT Bearer authorization",
         Name = "Authorization",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
-    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement()
-    {
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-            {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
-                {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                    Id = "Bearer"
+            new OpenApiSecurityScheme {
+                Reference = new OpenApiReference {
+                    Type = ReferenceType.SecurityScheme,
+                    Id   = "Bearer"
                 },
                 Scheme = "oauth2",
-                Name = "Bearer",
-                In = Microsoft.OpenApi.Models.ParameterLocation.Header
+                Name   = "Bearer",
+                In     = ParameterLocation.Header
             },
             new List<string>()
         }
     });
 });
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<ISaveChangesInterceptor, AuditInterceptor>();
+
+builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+    .AddInterceptors(sp.GetServices<ISaveChangesInterceptor>())
+    );
 
 builder.Services.AddIdentityApiEndpoints<User>(c =>
 {
@@ -176,40 +179,50 @@ builder.Services.AddOutputCache();
 builder.Services.AddHttpClient();
 var app = builder.Build();
 
-//using (var scope = app.Services.CreateScope())
-//{
-//    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-//    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
-//    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-//    var adminRole = new Role { Name = "Admin" };
-//    var userRole = new Role { Name = "User" };
-//    var panelRole = new Role { Name = "Panel" };
-//    if (!context.Roles.Any())
-//    {
-//        roleManager.CreateAsync(adminRole).Wait();
-//        roleManager.CreateAsync(userRole).Wait();
-//        roleManager.CreateAsync(panelRole).Wait();
-//    }
-//    if (!context.Users.Any(c => c.Type == UserType.Admin))
-//    {
-//        var adminUser = new User
-//        {
-//            UserName = "Admin@Panel.com",
-//            PhoneNumber = "09338181361",
-//            Type = UserType.Admin,
-//            PhoneNumberConfirmed = true,
-//            EmailConfirmed = true
-//        };
-//        userManager.CreateAsync(adminUser, "Admin@123").Wait();
-//        userManager.AddToRoleAsync(adminUser, "Admin").Wait();
-//    }
-//}
+using (var scope = app.Services.CreateScope())
+{
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var adminRole = new Role { Name = "Admin" };
+    var userRole = new Role { Name = "User" };
+    var panelRole = new Role { Name = "Panel" };
+    if (!context.Roles.Any())
+    {
+        roleManager.CreateAsync(adminRole).Wait();
+        roleManager.CreateAsync(userRole).Wait();
+        roleManager.CreateAsync(panelRole).Wait();
+    }
+    if (!context.Users.Any(c => c.Type == UserType.Admin))
+    {
+        var adminUser = new User
+        {
+            UserName = "Admin@Panel.com",
+            PhoneNumber = "09338181361",
+            Type = UserType.Admin,
+            PhoneNumberConfirmed = true,
+            EmailConfirmed = true
+        };
+        userManager.CreateAsync(adminUser, "Admin@123").Wait();
+        userManager.AddToRoleAsync(adminUser, "Admin").Wait();
+    }
+}
 
 app.UseOutputCache();
 //if (app.Environment.IsDevelopment())
 //{
+//app.MapOpenApi();
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(c =>
+{
+    // آدرس JSON برای هر سند
+    c.SwaggerEndpoint("/swagger/site/swagger.json", "Site APIs V1");
+    c.SwaggerEndpoint("/swagger/panel/swagger.json", "Panel APIs V1");
+
+    // اگر بخواهید یکی را به‌صورت پیش‌فرض باز کنید:
+    c.RoutePrefix = string.Empty; // swagger در ریشه‌ی / قرار می‌گیرد
+    c.DefaultModelsExpandDepth(-1);
+});
 //app.MapScalarApiReference();
 //}
 

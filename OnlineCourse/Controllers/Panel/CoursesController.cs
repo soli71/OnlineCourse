@@ -42,7 +42,6 @@ public record CourseCreateDto
 
 [Route("api/panel/[controller]")]
 [ApiController]
-[Authorize(Roles = "Admin,Panel")]
 public class CourseController : BaseController
 {
     private readonly ApplicationDbContext _context;
@@ -58,7 +57,7 @@ public class CourseController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetCourses([FromQuery] PagedRequest pagedRequest)
     {
-        var query = _context.Courses.AsQueryable();
+        var query = _context.Products.OfType<Course>().AsQueryable();
         if (!string.IsNullOrEmpty(pagedRequest.Search))
         {
             query = query.Where(c => c.Name.Contains(pagedRequest.Search));
@@ -87,7 +86,7 @@ public class CourseController : BaseController
     [HttpGet("{id}")]
     public async Task<IActionResult> GetCourse(int id)
     {
-        var course = await _context.Courses.FindAsync(id);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == id);
 
         if (course == null)
         {
@@ -97,9 +96,9 @@ public class CourseController : BaseController
         string image = null;
         string video = null;
 
-        if (!string.IsNullOrEmpty(course.ImageFileName))
+        if (!string.IsNullOrEmpty(course.DefaultImageFileName))
         {
-            image = await _minioService.GetFileUrlAsync("course", course.ImageFileName);
+            image = await _minioService.GetFileUrlAsync("course", course.DefaultImageFileName);
         }
         if (!string.IsNullOrEmpty(image))
         {
@@ -124,7 +123,7 @@ public class CourseController : BaseController
     [HttpPut("{id}")]
     public async Task<IActionResult> PutCourse(int id, [FromForm] CourseUpdateDto courseUpdateDto)
     {
-        var course = await _context.Courses.FindAsync(id);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == id);
         if (course == null)
         {
             return NotFoundB("دوره مورد نظر یافت نشد");
@@ -140,7 +139,7 @@ public class CourseController : BaseController
         course.IsPublish = courseUpdateDto.IsPublish;
         if (courseUpdateDto.Image != null)
         {
-            await _minioService.DeleteFileAsync("course", course.ImageFileName);
+            await _minioService.DeleteFileAsync("course", course.DefaultImageFileName);
             // Use a unique file name for the new image
             var imageFileName = $"{Guid.NewGuid()}_{Path.GetFileName(courseUpdateDto.Image.FileName)}";
 
@@ -154,7 +153,7 @@ public class CourseController : BaseController
 
             await _minioService.UploadFileAsync(bucketName, imageFileName, tempFilePath, courseUpdateDto.Image.ContentType);
 
-            course.ImageFileName = imageFileName;
+            course.DefaultImageFileName = imageFileName;
         }
 
         if (courseUpdateDto.PreviewVideo != null)
@@ -199,10 +198,10 @@ public class CourseController : BaseController
 
         var course = new Course
         {
-            Name = courseCreateDto.Name,
+            Name = courseCreateDto.Name.Trim(),
             Description = courseCreateDto.Description,
             Price = courseCreateDto.Price,
-            ImageFileName = imageFileName,
+            DefaultImageFileName = imageFileName,
             DurationTime = courseCreateDto.DurationTime,
             SpotPlayerCourseId = courseCreateDto.SpotPlayerCourseId,
             Limit = courseCreateDto.Limit,
@@ -226,7 +225,7 @@ public class CourseController : BaseController
         }
         // Create the course entity
 
-        _context.Courses.Add(course);
+        _context.Products.Add(course);
         await _context.SaveChangesAsync();
 
         return OkB();
@@ -236,22 +235,22 @@ public class CourseController : BaseController
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCourse(int id)
     {
-        var course = await _context.Courses.FindAsync(id);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == id);
         if (course == null)
         {
             return NotFoundB("دوره مورد نظر یافت نشد");
         }
 
-        var existOrder = await _context.OrderDetails.AnyAsync(c => c.CourseId == id);
+        var existOrder = await _context.OrderDetails.AnyAsync(c => c.ProductId == id);
         if (existOrder)
         {
             return BadRequestB("این دوره در سفارشات کاربران موجود می باشد. لطفا دوره  را از حالت منتشر شده خارح نمایید");
         }
 
-        _context.Courses.Remove(course);
+        _context.Products.Remove(course);
         await _context.SaveChangesAsync();
 
-        await _minioService.DeleteFileAsync("course", course.ImageFileName);
+        await _minioService.DeleteFileAsync("course", course.DefaultImageFileName);
 
         return OkB();
     }
@@ -259,7 +258,7 @@ public class CourseController : BaseController
     [HttpGet("{id}/student-count")]
     public async Task<IActionResult> GetStudentCount(int id)
     {
-        var course = await _context.Courses.FindAsync(id);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == id);
         if (course == null)
         {
             return NotFoundB("دوره مورد نظر یافت نشد");
@@ -282,7 +281,7 @@ public class CourseController : BaseController
     [HttpGet("{courseId}/SEO")]
     public async Task<IActionResult> GetSEO(int courseId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == courseId);
         if (course == null)
         {
             return NotFoundB("دوره مورد نظر یافت نشد");
@@ -299,7 +298,7 @@ public class CourseController : BaseController
     [HttpPatch("{courseId}/SEO")]
     public async Task<IActionResult> UpdateSEO(int courseId, [FromBody] SEODto seo)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == courseId);
         if (course == null)
         {
             return NotFoundB("دوره مورد نظر یافت نشد");
@@ -314,7 +313,7 @@ public class CourseController : BaseController
 
     private bool CourseExists(string name)
     {
-        return _context.Courses.Any(e => e.Name == name);
+        return _context.Products.OfType<Course>().Any(e => e.Name == name.Trim());
     }
 }
 

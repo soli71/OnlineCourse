@@ -28,7 +28,7 @@ namespace OnlineCourse.Controllers.Site
             var userCourses = await _applicationDbContext.OrderDetails
               .Include(x => x.Order)
               .Where(x => x.Order.UserId == userId && x.Order.Status == Entities.OrderStatus.Paid)
-              .Select(x => new GetAllUserSiteCoursesDto(x.Course.Id, x.Course.Name, x.Course.Price, x.License))
+              .Select(x => new GetAllUserSiteCoursesDto(x.Product.Id, x.Product.Name, x.Product.Price, ""))
               .ToListAsync();
             return OkB(userCourses);
         }

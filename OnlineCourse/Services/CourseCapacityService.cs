@@ -16,7 +16,7 @@ public class CourseCapacityService : ICourseCapacityService
 
     public async Task<bool> ExistCourseCapacityAsync(int courseId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == courseId);
         if (course is null)
         {
             return false;
@@ -28,7 +28,7 @@ public class CourseCapacityService : ICourseCapacityService
         }
 
         var totalCourseOrder = await _context.OrderDetails
-            .Where(x => x.CourseId == courseId &&
+            .Where(x => x.ProductId == courseId &&
                    (x.Order.Status == OrderStatus.Paid ||
                    (x.Order.Status == OrderStatus.Pending
                     //&&
@@ -42,7 +42,8 @@ public class CourseCapacityService : ICourseCapacityService
 
     public async Task<int> CourseStudentCountAsync(int courseId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.Id == courseId);
+
         if (course is null)
         {
             return 0;
@@ -54,7 +55,7 @@ public class CourseCapacityService : ICourseCapacityService
         }
 
         var totalCourseOrder = await _context.OrderDetails
-            .Where(x => x.CourseId == courseId &&
+            .Where(x => x.ProductId == courseId &&
                    (x.Order.Status == OrderStatus.Paid))
             .CountAsync();
 

@@ -51,14 +51,14 @@ public class CourseController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetCourses()
     {
-        var courses = await _context.Courses.Where(c => c.IsPublish).ToListAsync();
+        var courses = await _context.Products.OfType<Course>().Where(c => c.IsPublish).ToListAsync();
 
         //map to GetAllCoursesDto
         var coursesDto = courses.Select(c => new GetAllSiteCoursesDto(
             c.Id,
             c.Name,
             c.Price,
-             _minioService.GetFileUrlAsync("course", c.ImageFileName).Result,
+             _minioService.GetFileUrlAsync("course", c.DefaultImageFileName).Result,
             c.Description,
             c.DurationTime,
             c.FakeStudentsCount,
@@ -73,7 +73,7 @@ public class CourseController : BaseController
     [HttpGet("{slug}")]
     public async Task<IActionResult> GetCourse([FromRoute] string slug)
     {
-        var course = await _context.Courses.FirstOrDefaultAsync(c => c.IsPublish && c.Slug == slug);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.IsPublish && c.Slug == slug);
 
         //load image
 
@@ -82,7 +82,7 @@ public class CourseController : BaseController
             return NotFoundB("دوره مورد نظر یافت نشد.");
         }
 
-        var imageUrl = await _minioService.GetFileUrlAsync("course", course.ImageFileName);
+        var imageUrl = await _minioService.GetFileUrlAsync("course", course.DefaultImageFileName);
 
         string video = null;
         if (!string.IsNullOrEmpty(course.PreviewVideoName))
@@ -112,7 +112,7 @@ public class CourseController : BaseController
     [HttpGet("{courseId}/stream-video")]
     public async Task<IActionResult> StreamVideo(int courseId)
     {
-        var course = await _context.Courses.FirstOrDefaultAsync(c => c.IsPublish && c.Id == courseId);
+        var course = await _context.Products.OfType<Course>().FirstOrDefaultAsync(c => c.IsPublish && c.Id == courseId);
 
         //load image
 
@@ -120,7 +120,7 @@ public class CourseController : BaseController
         {
             return NotFoundB("دوره مورد نظر یافت نشد.");
         }
-        var imageUrl = await _minioService.GetFileUrlAsync("course", course.ImageFileName);
+        var imageUrl = await _minioService.GetFileUrlAsync("course", course.DefaultImageFileName);
 
         return File(imageUrl, "video/mp4");
     }
@@ -136,7 +136,7 @@ public class CourseController : BaseController
     [HttpGet("{courseId}/seasons")]
     public async Task<IActionResult> GetCourseSeasons([FromRoute] int courseId)
     {
-        var course = await _context.Courses
+        var course = await _context.Products.OfType<Course>()
             .Include(c => c.CourseSeasons)
             .ThenInclude(cs => cs.HeadLines)
             .FirstOrDefaultAsync(c => c.Id == courseId);

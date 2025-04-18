@@ -8,9 +8,15 @@ using OnlineCourse.Entities;
 using OnlineCourse.Extensions;
 using OnlineCourse.Services;
 using System.Diagnostics;
+using System.Linq.Expressions;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
+
+public class CreateOrderRequestDto
+{
+    public string CartId { get; set; }
+}
 
 [Route("api/site/[controller]")]
 [ApiController]
@@ -32,60 +38,81 @@ public class OrderController : BaseController
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateOrder()
+    public async Task<IActionResult> CreateOrder(CreateOrderRequestDto createOrderRequestDto)
     {
-        var user = HttpContext.User;
-        var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
+        Expression<Func<Cart, bool>> predict = c => c.UserId == 33333333333;
+        int userId = 0;
+        if (string.IsNullOrEmpty(createOrderRequestDto.CartId))
+        {
+            var user = HttpContext.User;
+            userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
+
+            predict = c => (c.UserId == userId && c.Status == CartStatus.Active);
+        }
+        else
+        {
+            Guid.TryParse(createOrderRequestDto.CartId, out var cartId);
+            predict = c => c.Id == cartId && c.Status == CartStatus.Active;
+        }
 
         var cart = await _context.Carts
             .Include(x => x.CartItems)
-            .ThenInclude(x => x.Course)
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.Status == CartStatus.Active);
+            .ThenInclude(x => x.Product)
+            .FirstOrDefaultAsync(predict);
 
-        if (cart is null)
-        {
+        if (cart == null || !cart.CartItems.Any())
             return BadRequestB("سبد خرید شما خالی می باشد");
-        }
 
         decimal totalPrice = 0;
-        List<FinalizeCartCourseDto> finalizeCartCourseDtos = new();
-        foreach (var cartItem in cart.CartItems)
+        foreach (var ci in cart.CartItems)
         {
-            var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == cartItem.CourseId && c.IsPublish);
+            var product = ci.Product;
 
-            if (course is null)
+            switch (product)
             {
-                return BadRequestB("این دوره غیرفعال می باشد");
-            }
+                case Course course:
+                    if (!course.IsPublish)
+                        return BadRequestB($"دوره '{course.Name}' در دسترس نیست");
+                    if (!await _courseCapacityService.ExistCourseCapacityAsync(course.Id))
+                        return BadRequestB($"ظرفیت دوره '{course.Name}' تکمیل می باشد");
 
-            var courseCapacity = await _courseCapacityService.ExistCourseCapacityAsync(cartItem.CourseId);
-            if (!courseCapacity)
-            {
-                return BadRequestB("ظرفیت دوره تکمیل می باشد");
-            }
+                    totalPrice += course.Price * ci.Quantity;
+                    break;
 
-            totalPrice += course.Price;
+                case PhysicalProduct phys:
+                    if (phys.StockQuantity < ci.Quantity)
+                        return BadRequestB($"موجودی محصول '{phys.Name}' کافی نیست");
+
+                    totalPrice += phys.Price * ci.Quantity;
+                    break;
+
+                default:
+                    return BadRequestB("نوع محصول نامعتبر است");
+            }
         }
+
         cart.Status = CartStatus.Close;
 
         Order order = new();
         //using (_lock.EnterScope())
         //{
+        cart.Status = CartStatus.Close;
+
         lock (_lock)
         {
-            int orderCodeSequence = GetNextOrderCode();
-
+            var seq = GetNextOrderCode();
             order = new Order
             {
                 UserId = userId,
                 TotalPrice = totalPrice,
                 OrderDate = DateTime.UtcNow,
                 Status = OrderStatus.Pending,
-                OrderCode = $"OC-{orderCodeSequence}",
-                OrderDetails = cart.CartItems.Select(x => new OrderDetails
+                OrderCode = $"OC-{seq}",
+                OrderDetails = cart.CartItems.Select(ci => new OrderDetails
                 {
-                    CourseId = x.CourseId,
-                    Price = x.Price
+                    ProductId = ci.ProductId,
+                    Quantity = ci.Quantity,
+                    UnitPrice = ci.Price
                 }).ToList()
             };
             _context.Orders.Add(order);
@@ -95,7 +122,7 @@ public class OrderController : BaseController
 
         //read admin phone number from environment variable
         var adminPhoneNumber = Environment.GetEnvironmentVariable("AdminPhoneNumber");
-        await _smsService.SendCreateOrderMessageForAdmin(adminPhoneNumber, order.OrderCode, order.OrderDetails.FirstOrDefault().Course.Name, order.OrderDate.ToPersianDateTime());
+        await _smsService.SendCreateOrderMessageForAdmin(adminPhoneNumber, order.OrderCode, order.OrderDetails.FirstOrDefault().Product.Name, order.OrderDate.ToPersianDateTime());
 
         var userForMessage = await _userManager.FindByIdAsync(userId.ToString());
 
@@ -121,24 +148,43 @@ public class OrderController : BaseController
     [HttpGet]
     public async Task<IActionResult> Get()
     {
-        var user = HttpContext.User;
-        var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
-        var order = await _context.Orders
-            .Include(x => x.OrderDetails)
-            .ThenInclude(x => x.Course)
-            .Where(x => x.UserId == userId)
-            .Select(x => new GetOrderSiteDto(
-                 x.Id,
-                 x.Status.GetDisplayValue(),
-                 x.TotalPrice,
-                 x.OrderDate.ToPersianDateTime(),
-                    x.OrderCode
-            )).ToListAsync();
-        return OkB(order);
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+        var orders = await _context.Orders
+            .Where(o => o.UserId == userId)
+            .Include(o => o.OrderDetails)
+                .ThenInclude(od => od.Product)
+            .OrderByDescending(o => o.OrderDate)
+
+            .Select(o => new GetOrderSiteDto(
+                o.Id,
+                o.Status.GetDisplayValue(),
+                o.TotalPrice,
+                o.OrderDate.ToPersianDateTime(),
+                o.OrderCode,
+                o.OrderDetails.Select(od => new GetOrderDetailSiteDto(
+                    od.Product.Name,
+                    od.Quantity,
+                    od.UnitPrice)
+                ).ToList()
+            ))
+            .ToListAsync();
+
+        return OkB(orders);
     }
 }
 
-public record GetOrderSiteDto(int Id, string Status, decimal TotalPrice, string OrderDate, string OrderCode);
+public record GetOrderSiteDto(
+      int Id,
+      string Status,
+      decimal TotalPrice,
+      string OrderDate,
+      string OrderCode,
+      List<GetOrderDetailSiteDto> Details
+  );
 
-public record FinalizeCartDto(decimal TotalPrice, List<FinalizeCartCourseDto> FinalizeCartCourseDtos);
-public record FinalizeCartCourseDto(int CourseId, string Name, decimal Price, string message);
+public record GetOrderDetailSiteDto(
+    string ProductName,
+    int Quantity,
+    decimal UnitPrice
+);
