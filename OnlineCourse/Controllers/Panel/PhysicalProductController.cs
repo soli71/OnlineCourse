@@ -4,8 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Products.Entities;
-using OnlineCourse.Products.RequestModels;
+using OnlineCourse.Products.RequestModels.Panel;
 using OnlineCourse.Products.ResponseModels;
+using OnlineCourse.Products.ResponseModels.Panel;
 using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Panel;
@@ -95,7 +96,8 @@ public class PhysicalProductsController : BaseController
             Price = dto.Price,
             DefaultImageFileName = fileName,
             StockQuantity = dto.StockQuantity,
-            IsPublish = dto.IsPublish
+            IsPublish = dto.IsPublish,
+            Slug = dto.Name,
         };
 
         _context.Products.Add(product);

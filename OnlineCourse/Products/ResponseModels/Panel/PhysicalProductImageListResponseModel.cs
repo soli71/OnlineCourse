@@ -1,4 +1,4 @@
-﻿namespace OnlineCourse.Products.ResponseModels;
+﻿namespace OnlineCourse.Products.ResponseModels.Panel;
 
 public class PhysicalProductImageListResponseModel
 {

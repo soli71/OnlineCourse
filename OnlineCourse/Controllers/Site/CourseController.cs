@@ -3,30 +3,11 @@ using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Products.Entities;
+using OnlineCourse.Products.ResponseModels.Site;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Site;
-
-public class ApiResult
-{
-    public bool Success { get; set; }
-    public string Message { get; set; }
-    public object Data { get; set; }
-    public int StatusCode { get; set; }
-
-    public ApiResult(bool success, string message, object data, int statusCode)
-    {
-        Success = success;
-        Message = message;
-        Data = data;
-        StatusCode = statusCode;
-    }
-}
-
-public record GetAllSiteCoursesDto(int Id, string Name, decimal Price, string Image, string Description, int DurationTime, int StudentsCount, bool ExistCapacity, string Slug);
-
-public record GetSiteCourseDto(int Id, string Name, string Description, decimal Price, string Image, int DurationTime, string video, int StudentsCount, bool ExistCapacity, string MetaTitle, string MetaDescription, string[] MetaKeywords);
 
 [Route("api/site/[controller]")]
 [ApiController]
@@ -55,7 +36,7 @@ public class CourseController : BaseController
         var courses = await _context.Products.OfType<Course>().Where(c => c.IsPublish).ToListAsync();
 
         //map to GetAllCoursesDto
-        var coursesDto = courses.Select(c => new GetAllSiteCoursesDto(
+        var coursesDto = courses.Select(c => new GetAllSiteCoursesResponseModel(
             c.Id,
             c.Name,
             c.Price,
@@ -93,7 +74,7 @@ public class CourseController : BaseController
         }
         var courseCapacity = await _courseCapacityService.ExistCourseCapacityAsync(course.Id);
 
-        var courseDto = new GetSiteCourseDto(
+        var courseDto = new GetSiteCourseResponseModel(
             course.Id,
             course.Name,
             course.Description,

@@ -1,4 +1,4 @@
-﻿namespace OnlineCourse.Products.ResponseModels;
+﻿namespace OnlineCourse.Products.ResponseModels.Panel;
 
 /// <summary>
 /// DTO for listing physical products in admin panel

@@ -1,4 +1,4 @@
-﻿namespace OnlineCourse.Products.ResponseModels;
+﻿namespace OnlineCourse.Products.ResponseModels.Panel;
 
 /// <summary>
 /// DTO for retrieving detailed information of a physical product

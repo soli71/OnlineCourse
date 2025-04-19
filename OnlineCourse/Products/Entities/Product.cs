@@ -15,18 +15,3 @@ public class Product : SEO, ICreatedAudit, IModifiedAudit
     public DateTime ModifiedAt { get; set; }
     public int ModifiedBy { get; set; }
 }
-
-public interface ICreatedAudit : IAuditable
-{
-    DateTime CreatedAt { get; set; }
-    int CreatedBy { get; set; }
-}
-
-public interface IModifiedAudit : IAuditable
-{
-    DateTime ModifiedAt { get; set; }
-    int ModifiedBy { get; set; }
-}
-
-public interface IAuditable
-{ }

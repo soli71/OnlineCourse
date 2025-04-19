@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace OnlineCourse.Products.RequestModels;
+namespace OnlineCourse.Products.RequestModels.Panel;
 
 public class PhysicalProductImageRequestModel : IValidatableObject
 {
