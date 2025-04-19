@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 
-namespace OnlineCourse.Entities;
+namespace OnlineCourse.Identity.Entities;
 
 public class RoleClaim : IdentityRoleClaim<int>
 {

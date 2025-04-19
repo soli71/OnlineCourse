@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
-using OnlineCourse.Entities;
-using OnlineCourse.Services;
+using OnlineCourse.Products.Entities;
+using OnlineCourse.Products.Services;
 
 namespace OnlineCourse.Controllers.Site;
 

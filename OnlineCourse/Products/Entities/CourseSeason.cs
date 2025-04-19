@@ -1,4 +1,4 @@
-﻿namespace OnlineCourse.Entities;
+﻿namespace OnlineCourse.Products.Entities;
 
 public class CourseSeason
 {

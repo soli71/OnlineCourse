@@ -1,5 +1,4 @@
-﻿
-namespace OnlineCourse.Services
+﻿namespace OnlineCourse.Products.Services
 {
     public interface ICourseCapacityService
     {

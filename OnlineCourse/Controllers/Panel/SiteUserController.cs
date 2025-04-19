@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
-using OnlineCourse.Entities;
+using OnlineCourse.Identity.Entities;
 
 namespace OnlineCourse.Controllers.Panel;
 

@@ -2,10 +2,14 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OnlineCourse.Carts;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
-using OnlineCourse.Entities;
 using OnlineCourse.Extensions;
+using OnlineCourse.Identity.Entities;
+using OnlineCourse.Orders;
+using OnlineCourse.Products.Entities;
+using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
 using System.Diagnostics;
 using System.Linq.Expressions;

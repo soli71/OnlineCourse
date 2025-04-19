@@ -1,89 +1,17 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
-using OnlineCourse.Entities;
+using OnlineCourse.Products.Entities;
+using OnlineCourse.Products.RequestModels;
+using OnlineCourse.Products.ResponseModels;
 using OnlineCourse.Services;
-using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Controllers.Panel;
-/// <summary>
-/// DTO for listing physical products in admin panel
-/// </summary>
-public record PhysicalProductListDto(
-    int Id,
-    string Name,
-    decimal Price,
-    int StockQuantity,
-    bool IsPublish
-);
-
-/// <summary>
-/// DTO for retrieving detailed information of a physical product
-/// </summary>
-public record PhysicalProductDetailDto(
-    int Id,
-    string Name,
-    string Description,
-    decimal Price,
-    int StockQuantity,
-    bool IsPublish
-);
-
-/// <summary>
-/// DTO for creating a new physical product
-/// </summary>
-public class PhysicalProductCreateDto
-{
-    [Required]
-    public string Name { get; init; }
-
-    public string Description { get; init; }
-
-    [Range(0, double.MaxValue)]
-    public decimal Price { get; init; }
-
-    [Required]
-    public List<IFormFile> Images { get; init; } = new();
-
-    [Range(0, int.MaxValue)]
-    public int StockQuantity { get; init; }
-
-    public bool IsPublish { get; init; }
-}
-
-public class PhysicalProductImageDto
-{
-    public IFormFile[] Images { get; init; }
-}
-
-public class PhysicalProductImageListDto
-{
-    public string ImageName { get; init; }
-    public string ImageUrl { get; init; }
-}
-
-/// <summary>
-/// DTO for updating an existing physical product
-/// </summary>
-public class PhysicalProductUpdateDto
-{
-    [Required]
-    public string Name { get; init; }
-
-    public string Description { get; init; }
-
-    [Range(0, double.MaxValue)]
-    public decimal Price { get; init; }
-
-    [Range(0, int.MaxValue)]
-    public int StockQuantity { get; init; }
-
-    public bool IsPublish { get; init; }
-}
 
 [Route("api/panel/[controller]")]
-[Authorize(Roles = "Panel,Admin")]
+//[Authorize(Roles = "Panel,Admin")]
 [ApiController]
 public class PhysicalProductsController : BaseController
 {
@@ -103,7 +31,7 @@ public class PhysicalProductsController : BaseController
         var products = await _context.Products
             .OfType<PhysicalProduct>()
             .OrderBy(p => p.Name)
-            .Select(p => new PhysicalProductListDto(
+            .Select(p => new PhysicalProductListResponseModel(
                  p.Id,
                  p.Name,
                  p.Price,
@@ -132,7 +60,7 @@ public class PhysicalProductsController : BaseController
             imageUrls.Add(await _minio.GetFileUrlAsync("physical-product", img));
         }
 
-        var dto = new PhysicalProductDetailDto(
+        var dto = new PhysicalProductDetailResponseModel(
              product.Id,
              product.Name,
              product.Description,
@@ -146,30 +74,26 @@ public class PhysicalProductsController : BaseController
 
     // POST: api/panel/PhysicalProducts
     [HttpPost]
-    public async Task<IActionResult> Create([FromForm] PhysicalProductCreateDto dto)
+    public async Task<IActionResult> Create([FromForm] PhysicalProductCreateRequestModel dto)
     {
         if (await _context.Products.OfType<PhysicalProduct>().AnyAsync(p => p.Name == dto.Name.Trim()))
             return BadRequestB("این محصول قبلاً تعریف شده است");
 
-        var images = new List<string>();
-        foreach (var file in dto.Images)
+        var file = dto.DefaultImage;
+        var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
+        var tempPath = Path.Combine(Path.GetTempPath(), fileName);
+        using (var stream = System.IO.File.Create(tempPath))
         {
-            var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
-            var tempPath = Path.Combine(Path.GetTempPath(), fileName);
-            using (var stream = System.IO.File.Create(tempPath))
-            {
-                await file.CopyToAsync(stream);
-            }
-            await _minio.UploadFileAsync("physical-product", fileName, tempPath, file.ContentType);
-            images.Add(fileName);
+            await file.CopyToAsync(stream);
         }
+        await _minio.UploadFileAsync("physical-product", fileName, tempPath, file.ContentType);
 
         var product = new PhysicalProduct
         {
             Name = dto.Name.Trim(),
             Description = dto.Description,
             Price = dto.Price,
-            ImagesPath = images.ToArray(),
+            DefaultImageFileName = fileName,
             StockQuantity = dto.StockQuantity,
             IsPublish = dto.IsPublish
         };
@@ -182,7 +106,7 @@ public class PhysicalProductsController : BaseController
 
     // PUT: api/panel/PhysicalProducts/5
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromForm] PhysicalProductUpdateDto dto)
+    public async Task<IActionResult> Update(int id, [FromForm] PhysicalProductUpdatRequestModel dto)
     {
         var product = await _context.Products
             .OfType<PhysicalProduct>()
@@ -203,8 +127,8 @@ public class PhysicalProductsController : BaseController
         return OkB();
     }
 
-    [HttpPut("{id}/images")]
-    public async Task<IActionResult> UpdateImages(int id, [FromForm] PhysicalProductImageDto dto)
+    [HttpPatch("{id}/images")]
+    public async Task<IActionResult> AddImage(int id, [FromForm] PhysicalProductImageRequestModel dto)
     {
         var product = await _context.Products
             .OfType<PhysicalProduct>()
@@ -212,21 +136,16 @@ public class PhysicalProductsController : BaseController
         if (product == null)
             return NotFoundB("محصول فیزیکی یافت نشد");
 
-        var images = new List<string>();
-        foreach (var file in dto.Images)
+        var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(dto.Image.FileName)}";
+        var tempPath = Path.Combine(Path.GetTempPath(), fileName);
+        using (var stream = System.IO.File.Create(tempPath))
         {
-            var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
-            var tempPath = Path.Combine(Path.GetTempPath(), fileName);
-            using (var stream = System.IO.File.Create(tempPath))
-            {
-                await file.CopyToAsync(stream);
-            }
-            await _minio.UploadFileAsync("physical-product", fileName, tempPath, file.ContentType);
-            images.Add(fileName);
+            await dto.Image.CopyToAsync(stream);
         }
+        await _minio.UploadFileAsync("physical-product", fileName, tempPath, dto.Image.ContentType);
 
         // Fix: Combine the existing ImagesPath array with the new images list
-        product.ImagesPath = product.ImagesPath?.Concat(images).ToArray() ?? images.ToArray();
+        product.ImagesPath = product.ImagesPath.Append(fileName).ToArray();
 
         await _context.SaveChangesAsync();
         return OkB();
@@ -259,10 +178,10 @@ public class PhysicalProductsController : BaseController
         if (product.ImagesPath == null)
             return NotFoundB("تصویر یافت نشد");
 
-        var imageUrls = new List<PhysicalProductImageListDto>();
+        var imageUrls = new List<PhysicalProductImageListResponseModel>();
         foreach (var img in product.ImagesPath)
         {
-            imageUrls.Add(new PhysicalProductImageListDto
+            imageUrls.Add(new PhysicalProductImageListResponseModel
             {
                 ImageName = img,
                 ImageUrl = await _minio.GetFileUrlAsync("physical-product", img)

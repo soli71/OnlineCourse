@@ -1,4 +1,6 @@
-﻿namespace OnlineCourse.Entities;
+﻿using OnlineCourse.Products.Entities;
+
+namespace OnlineCourse.Carts;
 
 public class CartItem
 {

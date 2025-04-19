@@ -1,9 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using OnlineCourse.Contexts;
-using OnlineCourse.Entities;
+using OnlineCourse.Orders;
+using OnlineCourse.Products.Entities;
 
-namespace OnlineCourse.Services;
+namespace OnlineCourse.Products.Services;
 
 public class CourseCapacityService : ICourseCapacityService
 {
@@ -30,10 +31,10 @@ public class CourseCapacityService : ICourseCapacityService
         var totalCourseOrder = await _context.OrderDetails
             .Where(x => x.ProductId == courseId &&
                    (x.Order.Status == OrderStatus.Paid ||
-                   (x.Order.Status == OrderStatus.Pending
+                   x.Order.Status == OrderStatus.Pending
                     //&&
                     // x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow
-                    ))
+                    )
                     )
             .CountAsync();
 
@@ -56,7 +57,7 @@ public class CourseCapacityService : ICourseCapacityService
 
         var totalCourseOrder = await _context.OrderDetails
             .Where(x => x.ProductId == courseId &&
-                   (x.Order.Status == OrderStatus.Paid))
+                   x.Order.Status == OrderStatus.Paid)
             .CountAsync();
 
         return totalCourseOrder;

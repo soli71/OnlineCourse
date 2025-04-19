@@ -6,7 +6,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using OnlineCourse.Blogs.Entities;
+using OnlineCourse.Carts;
 using OnlineCourse.Entities;
+using OnlineCourse.Identity.Entities;
+using OnlineCourse.Orders;
+using OnlineCourse.Products.Entities;
 using System;
 
 namespace OnlineCourse.Contexts;

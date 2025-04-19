@@ -2,7 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
-using OnlineCourse.Entities;
+using OnlineCourse.Orders;
+using OnlineCourse.Products.Entities;
 using System.Net.Quic;
 
 namespace OnlineCourse.Controllers.Panel;

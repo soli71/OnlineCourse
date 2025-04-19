@@ -1,4 +1,4 @@
-﻿namespace OnlineCourse.Entities;
+﻿namespace OnlineCourse.Carts;
 
 public class Cart
 {

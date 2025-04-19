@@ -1,4 +1,7 @@
-﻿namespace OnlineCourse.Entities;
+﻿using OnlineCourse.Identity.Entities;
+using OnlineCourse.Products.Entities;
+
+namespace OnlineCourse.Orders;
 
 public class OrderDetails
 {

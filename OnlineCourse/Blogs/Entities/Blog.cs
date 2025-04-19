@@ -1,4 +1,6 @@
-﻿namespace OnlineCourse.Entities;
+﻿using OnlineCourse.Entities;
+
+namespace OnlineCourse.Blogs.Entities;
 
 public class Blog : SEO
 {

@@ -1,4 +1,6 @@
-﻿namespace OnlineCourse.Entities;
+﻿using OnlineCourse.Entities;
+
+namespace OnlineCourse.Products.Entities;
 
 public class Product : SEO, ICreatedAudit, IModifiedAudit
 {

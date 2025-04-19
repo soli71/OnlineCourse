@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using OnlineCourse.Entities;
+using OnlineCourse.Identity.Entities;
 using OnlineCourse.Models;
 using OnlineCourse.Services;
 using QRCoder;

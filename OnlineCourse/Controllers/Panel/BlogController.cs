@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OnlineCourse.Blogs.Entities;
 using OnlineCourse.Contexts;
 using OnlineCourse.Entities;
 using OnlineCourse.Services;

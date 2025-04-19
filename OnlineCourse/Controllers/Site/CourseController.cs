@@ -2,7 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
-using OnlineCourse.Entities;
+using OnlineCourse.Products.Entities;
+using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Site;

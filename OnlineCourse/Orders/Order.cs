@@ -1,6 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using OnlineCourse.Identity.Entities;
+using System.ComponentModel.DataAnnotations;
 
-namespace OnlineCourse.Entities;
+namespace OnlineCourse.Orders;
 
 public class OrderStatusHistory
 {
@@ -12,6 +13,7 @@ public class OrderStatusHistory
     public int UserId { get; set; }
     public string Description { get; set; }
 }
+
 public class Order
 {
     public int Id { get; set; }
@@ -28,8 +30,10 @@ public enum OrderStatus
 {
     [Display(Name = "در انتظار پرداخت")]
     Pending = 1,
+
     [Display(Name = "پرداخت شده")]
     Paid = 2,
+
     [Display(Name = "لغو شده")]
     Canceled = 3
 }

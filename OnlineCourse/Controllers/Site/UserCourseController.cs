@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
-using OnlineCourse.Entities;
+using OnlineCourse.Orders;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site
@@ -27,7 +27,7 @@ namespace OnlineCourse.Controllers.Site
 
             var userCourses = await _applicationDbContext.OrderDetails
               .Include(x => x.Order)
-              .Where(x => x.Order.UserId == userId && x.Order.Status == Entities.OrderStatus.Paid)
+              .Where(x => x.Order.UserId == userId && x.Order.Status == OrderStatus.Paid)
               .Select(x => new GetAllUserSiteCoursesDto(x.Product.Id, x.Product.Name, x.Product.Price, ""))
               .ToListAsync();
             return OkB(userCourses);

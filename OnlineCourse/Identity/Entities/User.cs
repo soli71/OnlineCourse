@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using OnlineCourse.Orders;
 
-namespace OnlineCourse.Entities;
+namespace OnlineCourse.Identity.Entities;
 
 public class User : IdentityUser<int>
 {
