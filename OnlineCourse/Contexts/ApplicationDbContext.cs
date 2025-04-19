@@ -1,9 +1,5 @@
-﻿using Azure;
-using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Mvc.Diagnostics;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OnlineCourse.Blogs.Entities;
@@ -12,7 +8,6 @@ using OnlineCourse.Entities;
 using OnlineCourse.Identity.Entities;
 using OnlineCourse.Orders;
 using OnlineCourse.Products.Entities;
-using System;
 
 namespace OnlineCourse.Contexts;
 

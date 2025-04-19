@@ -1,5 +1,4 @@
-﻿using Humanizer;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +8,6 @@ using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Products.Entities;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
-using System;
 using System.Linq.Expressions;
 using System.Security.Claims;
 

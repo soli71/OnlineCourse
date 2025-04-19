@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Mvc;
 using OnlineCourse.Blogs.Entities;
 using OnlineCourse.Contexts;
-using OnlineCourse.Entities;
 using OnlineCourse.Services;
 using System.ComponentModel.DataAnnotations;
 

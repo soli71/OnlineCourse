@@ -5,14 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Products.Entities;
 using OnlineCourse.Products.RequestModels.Panel;
-using OnlineCourse.Products.ResponseModels;
 using OnlineCourse.Products.ResponseModels.Panel;
 using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Panel;
 
 [Route("api/panel/[controller]")]
-//[Authorize(Roles = "Panel,Admin")]
+[Authorize(Roles = "Panel,Admin")]
 [ApiController]
 public class PhysicalProductsController : BaseController
 {

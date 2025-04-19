@@ -1,6 +1,4 @@
-﻿using Humanizer;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Mvc;
 using OnlineCourse.Contexts;
 using OnlineCourse.Products.Entities;
 using OnlineCourse.Products.Services;

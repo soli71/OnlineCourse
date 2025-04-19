@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Identity.Entities;
-using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Panel;
 

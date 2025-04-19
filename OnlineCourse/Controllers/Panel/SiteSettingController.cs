@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OnlineCourse.Contexts;
-using OnlineCourse.Entities;
 using OnlineCourse.Services;
 
 namespace OnlineCourse.Controllers.Panel

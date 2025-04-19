@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.OutputCaching;
-
-namespace OnlineCourse.Services
+﻿namespace OnlineCourse.Services
 {
     public interface IMinioService
     {

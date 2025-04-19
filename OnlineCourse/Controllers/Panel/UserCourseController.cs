@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Orders;
 using OnlineCourse.Products.Entities;
-using System.Net.Quic;
 
 namespace OnlineCourse.Controllers.Panel;
 

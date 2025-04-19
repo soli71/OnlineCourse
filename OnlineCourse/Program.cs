@@ -13,7 +13,6 @@ using OnlineCourse.Identity;
 using OnlineCourse.Identity.Entities;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
-using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 

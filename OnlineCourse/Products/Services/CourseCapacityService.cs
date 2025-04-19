@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using OnlineCourse.Contexts;
 using OnlineCourse.Orders;
 using OnlineCourse.Products.Entities;
