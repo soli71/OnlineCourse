@@ -146,7 +146,10 @@ public class PhysicalProductsController : BaseController
         await _minio.UploadFileAsync("physical-product", fileName, tempPath, dto.Image.ContentType);
 
         // Fix: Combine the existing ImagesPath array with the new images list
-        product.ImagesPath = product.ImagesPath.Append(fileName).ToArray();
+        if (product.ImagesPath == null || product.ImagesPath.Length == 0)
+            product.ImagesPath = new[] { fileName };
+        else
+            product.ImagesPath = product.ImagesPath.Append(fileName).ToArray();
 
         await _context.SaveChangesAsync();
         return OkB();
