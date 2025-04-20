@@ -179,34 +179,58 @@ builder.Services.AddOutputCache();
 builder.Services.AddHttpClient();
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+app.Use(async (context, next) =>
 {
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
-    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var adminRole = new Role { Name = "Admin" };
-    var userRole = new Role { Name = "User" };
-    var panelRole = new Role { Name = "Panel" };
-    if (!context.Roles.Any())
+    try
     {
-        roleManager.CreateAsync(adminRole).Wait();
-        roleManager.CreateAsync(userRole).Wait();
-        roleManager.CreateAsync(panelRole).Wait();
+        await next(context);
     }
-    if (!context.Users.Any(c => c.Type == UserType.Admin))
+    catch (Exception ex)
     {
-        var adminUser = new User
-        {
-            UserName = "Admin@Panel.com",
-            PhoneNumber = "09338181361",
-            Type = UserType.Admin,
-            PhoneNumberConfirmed = true,
-            EmailConfirmed = true
-        };
-        userManager.CreateAsync(adminUser, "Admin@123").Wait();
-        userManager.AddToRoleAsync(adminUser, "Admin").Wait();
+        // Write to file
+        string loadDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+        Directory.CreateDirectory(loadDirectory);
+
+        string logFile = Path.Combine(loadDirectory, $"Error_{DateTime.Now:yyyyMMdd}.log");
+        string errorMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Exception  : {ex.Message} \r\n" +
+        $"Stack Trace: {ex.StackTrace}\r\n" +
+        $"____________________________________________________________________\r\n";
+        await File.AppendAllTextAsync(logFile, errorMessage);
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        var error = new ApiResult(false, "خطا در سرور", null, 500);
+        await context.Response.WriteAsync(JsonSerializer.Serialize(error));
     }
-}
+});
+
+//using (var scope = app.Services.CreateScope())
+//{
+//    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+//    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+//    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+//    var adminRole = new Role { Name = "Admin" };
+//    var userRole = new Role { Name = "User" };
+//    var panelRole = new Role { Name = "Panel" };
+//    if (!context.Roles.Any())
+//    {
+//        roleManager.CreateAsync(adminRole).Wait();
+//        roleManager.CreateAsync(userRole).Wait();
+//        roleManager.CreateAsync(panelRole).Wait();
+//    }
+//    if (!context.Users.Any(c => c.Type == UserType.Admin))
+//    {
+//        var adminUser = new User
+//        {
+//            UserName = "Admin@Panel.com",
+//            PhoneNumber = "09338181361",
+//            Type = UserType.Admin,
+//            PhoneNumberConfirmed = true,
+//            EmailConfirmed = true
+//        };
+//        userManager.CreateAsync(adminUser, "Admin@123").Wait();
+//        userManager.AddToRoleAsync(adminUser, "Admin").Wait();
+//    }
+//}
 
 app.UseOutputCache();
 //if (app.Environment.IsDevelopment())
