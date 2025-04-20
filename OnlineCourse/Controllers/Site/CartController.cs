@@ -145,7 +145,13 @@ public class CartController : BaseController
             else if (product is PhysicalProduct phys)
             {
                 if (cart.CartItems.Any(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete))
-                    cart.CartItems.FirstOrDefault(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete).Quantity += createCartDto.Quantity;
+                {
+                    var cartProduct = cart.CartItems.FirstOrDefault(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete);
+                    if (cartProduct.Quantity + createCartDto.Quantity > phys.StockQuantity)
+                        return BadRequestB("موجودی محصول کافی نیست");
+                    else
+                        cartProduct.Quantity += createCartDto.Quantity;
+                }
                 else if (phys.StockQuantity <= 0)
                     return BadRequestB("موجودی محصول کافی نیست");
                 else
@@ -256,18 +262,26 @@ public class CartController : BaseController
         return OkB(dto);
     }
 
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    [HttpDelete("{id}/product/{productId}")]
+    public async Task<IActionResult> Delete(string id, int productId)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId);
+
+        Guid.TryParse(id, out var cartId);
+
+        Expression<Func<Cart, bool>> condition = c => c.UserId == 23332323232;
+        if (cartId != Guid.Empty)
+            condition = c => c.Id == cartId && c.Status == CartStatus.Active;
+        else if (userId != default)
+            condition = c => c.UserId == userId && c.Status == CartStatus.Active;
 
         var cart = await _context.Carts
             .Include(c => c.CartItems)
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.Status == CartStatus.Active);
+            .FirstOrDefaultAsync(condition);
         if (cart == null)
             return NotFoundB("سبد خرید شما خالی است");
 
-        var item = cart.CartItems.FirstOrDefault(ci => ci.ProductId == id && !ci.IsDelete);
+        var item = cart.CartItems.FirstOrDefault(ci => ci.ProductId == productId && !ci.IsDelete);
         if (item == null)
             return NotFoundB("محصول مورد نظر در سبد وجود ندارد");
 
