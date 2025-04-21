@@ -143,12 +143,20 @@ public class CartController : BaseController
         {
             if (product is Course course)
             {
+                var courseCartItem = cart.CartItems.FirstOrDefault(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete);
                 if (!course.IsPublish)
                     return BadRequestB("دوره مورد نظر در دسترس نیست");
-                else if (cart.CartItems.Any(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete))
-                    return BadRequestB("این دوره در سبد خرید شما موجود می باشد.");
+                else if (courseCartItem is not null)
+                {
+                    if (createCartDto.Quantity < 0)
+                        courseCartItem.IsDelete = true;
+                    else
+                        return BadRequestB("این دوره در سبد خرید شما موجود می باشد.");
+                }
                 else if (!await _courseCapacityService.ExistCourseCapacityAsync(course.Id))
                     return BadRequestB("ظرفیت دوره تکمیل می‌باشد");
+                else if (courseCartItem is not null && createCartDto.Quantity < 0)
+                    return BadRequestB("این دوره در سبد خرید شما موجود نمی باشد.");
                 else
 
                     cart.CartItems.Add(new CartItem
@@ -165,8 +173,12 @@ public class CartController : BaseController
                     var cartProduct = cart.CartItems.FirstOrDefault(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete);
                     if (cartProduct.Quantity + createCartDto.Quantity > phys.StockQuantity)
                         return BadRequestB("موجودی محصول کافی نیست");
+                    else if ((cartProduct.Quantity + createCartDto.Quantity) < 0)
+                        return BadRequestB("محصول در سبد خرید شما وجود ندارد");
                     else
                         cartProduct.Quantity += createCartDto.Quantity;
+                    if (cartProduct.Quantity == 0)
+                        cartProduct.IsDelete = true;
                 }
                 else if (phys.StockQuantity <= 0)
                     return BadRequestB("موجودی محصول کافی نیست");
@@ -208,7 +220,7 @@ public class CartController : BaseController
         }
 
         var cart = await _context.Carts
-            .Include(x => x.CartItems.Where(c => !c.IsDelete))
+            .Include(x => x.CartItems.Where(c => !c.IsDelete && c.Quantity > 0))
             .ThenInclude(x => x.Product)
             .FirstOrDefaultAsync(func);
 

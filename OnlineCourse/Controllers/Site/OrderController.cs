@@ -112,7 +112,7 @@ public class OrderController : BaseController
                 OrderDate = DateTime.UtcNow,
                 Status = OrderStatus.Pending,
                 OrderCode = $"OC-{seq}",
-                OrderDetails = cart.CartItems.Select(ci => new OrderDetails
+                OrderDetails = cart.CartItems.Where(c=>!c.IsDelete && c.Quantity>=0).Select(ci => new OrderDetails
                 {
                     ProductId = ci.ProductId,
                     Quantity = ci.Quantity,
