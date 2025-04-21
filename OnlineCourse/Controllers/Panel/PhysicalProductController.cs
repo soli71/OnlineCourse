@@ -57,7 +57,7 @@ public class PhysicalProductsController : BaseController
         var imageUrls = new List<string>();
         foreach (var img in product.ImagesPath ?? Array.Empty<string>())
         {
-            imageUrls.Add(await _minio.GetFileUrlAsync("physical-product", img));
+            imageUrls.Add(await _minio.GetFileUrlAsync(MinioKey.PhysicalProduct, img));
         }
 
         var dto = new PhysicalProductDetailResponseModel(
@@ -86,7 +86,7 @@ public class PhysicalProductsController : BaseController
         {
             await file.CopyToAsync(stream);
         }
-        await _minio.UploadFileAsync("physical-product", fileName, tempPath, file.ContentType);
+        await _minio.UploadFileAsync(MinioKey.PhysicalProduct, fileName, tempPath, file.ContentType);
 
         var product = new PhysicalProduct
         {
@@ -143,7 +143,7 @@ public class PhysicalProductsController : BaseController
         {
             await dto.Image.CopyToAsync(stream);
         }
-        await _minio.UploadFileAsync("physical-product", fileName, tempPath, dto.Image.ContentType);
+        await _minio.UploadFileAsync(MinioKey.PhysicalProduct, fileName, tempPath, dto.Image.ContentType);
 
         // Fix: Combine the existing ImagesPath array with the new images list
         if (product.ImagesPath == null || product.ImagesPath.Length == 0)
@@ -165,7 +165,7 @@ public class PhysicalProductsController : BaseController
             return NotFoundB("محصول فیزیکی یافت نشد");
         if (product.ImagesPath == null || !product.ImagesPath.Contains(imageName))
             return NotFoundB("تصویر یافت نشد");
-        await _minio.DeleteFileAsync("physical-product", imageName);
+        await _minio.DeleteFileAsync(MinioKey.PhysicalProduct, imageName);
         product.ImagesPath = product.ImagesPath.Where(i => i != imageName).ToArray();
         await _context.SaveChangesAsync();
         return OkB();
@@ -188,7 +188,7 @@ public class PhysicalProductsController : BaseController
             imageUrls.Add(new PhysicalProductImageListResponseModel
             {
                 ImageName = img,
-                ImageUrl = await _minio.GetFileUrlAsync("physical-product", img)
+                ImageUrl = await _minio.GetFileUrlAsync(MinioKey.PhysicalProduct, img)
             });
         }
 
@@ -210,7 +210,7 @@ public class PhysicalProductsController : BaseController
             return BadRequestB("این محصول در سفارشات کاربران موجود است و قابل حذف نمی‌باشد");
 
         foreach (var img in product.ImagesPath ?? Array.Empty<string>())
-            await _minio.DeleteFileAsync("physical-product", img);
+            await _minio.DeleteFileAsync(MinioKey.PhysicalProduct, img);
 
         _context.Products.Remove(product);
         await _context.SaveChangesAsync();

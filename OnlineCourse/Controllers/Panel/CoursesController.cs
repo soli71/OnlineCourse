@@ -97,11 +97,11 @@ public class CourseController : BaseController
 
         if (!string.IsNullOrEmpty(course.DefaultImageFileName))
         {
-            image = await _minioService.GetFileUrlAsync("course", course.DefaultImageFileName);
+            image = await _minioService.GetFileUrlAsync(MinioKey.Course, course.DefaultImageFileName);
         }
         if (!string.IsNullOrEmpty(image))
         {
-            video = await _minioService.GetFileUrlAsync("course", course.PreviewVideoName);
+            video = await _minioService.GetFileUrlAsync(MinioKey.Course, course.PreviewVideoName);
         }
         return OkB(new GetCourseDto(
             course.Id,
@@ -191,7 +191,7 @@ public class CourseController : BaseController
             await courseCreateDto.Image.CopyToAsync(stream);
         }
 
-        var bucketName = "course";
+        var bucketName = MinioKey.Course;
 
         await _minioService.UploadFileAsync(bucketName, imageFileName, tempFilePath, courseCreateDto.Image.ContentType);
 
@@ -249,7 +249,7 @@ public class CourseController : BaseController
         _context.Products.Remove(course);
         await _context.SaveChangesAsync();
 
-        await _minioService.DeleteFileAsync("course", course.DefaultImageFileName);
+        await _minioService.DeleteFileAsync(MinioKey.Course, course.DefaultImageFileName);
 
         return OkB();
     }

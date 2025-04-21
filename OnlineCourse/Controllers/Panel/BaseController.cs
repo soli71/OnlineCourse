@@ -26,4 +26,6 @@ public class BaseController : ControllerBase
         return base.NotFound(new ApiResult(false, message, null,404));
     }
 
+
+
 }

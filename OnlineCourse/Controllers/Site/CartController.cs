@@ -9,6 +9,7 @@ using OnlineCourse.Products.Entities;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
@@ -26,38 +27,53 @@ public class CreateCartDto
     }
 }
 
-public class CartItemDto
+public interface ICartItemCount
 {
-    public int ProductId { get; set; }
-    public string Name { get; set; }
-    public decimal Price { get; set; }
-    public string Message { get; set; }
-    public string Image { get; set; }
-    public int Quantity { get; set; }
-
-    public CartItemDto(int productId, string name, decimal price, int quantity, string message = null, string image = null)
-    {
-        ProductId = productId;
-        Name = name;
-        Price = price;
-        Message = message;
-        Image = image;
-        Quantity = quantity;
-    }
+    public int ProductItemCount { get; }
 }
 
-public class CartDto
+public class CourseCartItemModel
 {
-    public List<CartItemDto> CartItems { get; set; }
-    public decimal TotalPrice { get; set; }
-    public decimal Discount { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+    public int ProductId { get; set; }
+    public string Image { get; set; }
+    public string Message { get; set; }
+    public int Quantity { get; set; }
+}
 
-    public CartDto(List<CartItemDto> cartItems, decimal discount, decimal totalPrice)
-    {
-        CartItems = cartItems;
-        Discount = discount;
-        TotalPrice = totalPrice;
-    }
+public class CourseCartListModel : ICartItemCount
+{
+    public List<CourseCartItemModel> CourseCartItems { get; set; } = new();
+
+    public int ProductItemCount => CourseCartItems.Count;
+}
+
+public class ProductCartItemModel
+{
+    public string Name { get; set; }
+    public int ProductId { get; set; }
+    public decimal Price { get; set; }
+    public string Image { get; set; }
+    public string Message { get; set; }
+    public int Quantity { get; set; }
+}
+
+public class PhysicalProductCartListModel : ICartItemCount
+{
+    public List<ProductCartItemModel> ProductCartItems { get; set; } = new();
+    public int ProductItemCount => ProductCartItems.Count;
+}
+
+public class CartListModel
+{
+    public CourseCartListModel CourseCartListModel { get; set; } = new();
+    public PhysicalProductCartListModel PhysicalProductCartListModel { get; set; } = new();
+    public int ProductItemCount => CourseCartListModel.ProductItemCount + PhysicalProductCartListModel.ProductItemCount;
+
+    public decimal TotalPrice { get; set; }
+
+    public decimal Discount { get; set; }
 }
 
 [ApiController]
@@ -197,10 +213,13 @@ public class CartController : BaseController
             .FirstOrDefaultAsync(func);
 
         if (cart == null || !cart.CartItems.Any())
-            return OkB(new CartDto(new List<CartItemDto>(), 0m, 0m));
+            return OkB(new CartListModel());
 
         decimal totalPrice = 0m;
-        var items = new List<CartItemDto>();
+        var items = new List<CartListModel>();
+
+        var courseList = new CourseCartListModel();
+        var physicalProductList = new PhysicalProductCartListModel();
 
         foreach (var ci in cart.CartItems)
         {
@@ -209,38 +228,42 @@ public class CartController : BaseController
 
             if (prod is Course crs)
             {
+                courseList.CourseCartItems.Add(new CourseCartItemModel
+                {
+                    Name = crs.Name,
+                    ProductId = crs.Id,
+                    Image = await _minioService.GetFileUrlAsync(MinioKey.Course, crs.DefaultImageFileName),
+                    Message = message,
+                    Quantity = ci.Quantity,
+                    Price = ci.Price
+                });
+
                 if (!crs.IsPublish)
                     message = "این دوره غیرفعال شده است";
                 else if (!await _courseCapacityService.ExistCourseCapacityAsync(crs.Id))
                     message = "ظرفیت دوره تکمیل است";
+
+                if (!string.IsNullOrEmpty(message))
+                    ci.IsDelete = true;
             }
             else if (prod is PhysicalProduct pp)
             {
+                physicalProductList.ProductCartItems.Add(new ProductCartItemModel
+                {
+                    Name = pp.Name,
+                    ProductId = pp.Id,
+                    Image = await _minioService.GetFileUrlAsync(MinioKey.PhysicalProduct, pp.DefaultImageFileName),
+                    Message = message,
+                    Quantity = ci.Quantity,
+                    Price = ci.Price
+                });
+
                 if (pp.StockQuantity < ci.Quantity)
+                {
                     message = "موجودی محصول کافی نیست";
+                    ci.IsDelete = true;
+                }
             }
-
-            // حذف یا علامت‌گذاری آیتم ناقص
-            if (message != null)
-            {
-                ci.IsDelete = true;
-            }
-            else
-            {
-                totalPrice += ci.Price * ci.Quantity;
-            }
-
-            var imageUrl = prod.DefaultImageFileName != null
-                ? await _minioService.GetFileUrlAsync(prod is Course ? "course" : "physical", prod.DefaultImageFileName)
-                : null;
-
-            items.Add(new CartItemDto(
-                prod.Id,
-                prod.Name,
-                ci.Price,
-                ci.Quantity,
-                message,
-                imageUrl));
         }
 
         if (cart.CartItems.All(x => x.IsDelete))
@@ -250,15 +273,13 @@ public class CartController : BaseController
 
         await _context.SaveChangesAsync();
 
-        if (cart.CartItems.All(ci => ci.IsDelete))
+        var dto = new CartListModel
         {
-            cart.Status = CartStatus.Close;
-        }
-
-        await _context.SaveChangesAsync();
-
-        var discount = 0m; // در صورت داشتن کد تخفیف و غیره
-        var dto = new CartDto(items, discount, totalPrice - discount);
+            CourseCartListModel = courseList,
+            PhysicalProductCartListModel = physicalProductList,
+            TotalPrice = cart.CartItems.Where(x => !x.IsDelete).Sum(x => x.Price * x.Quantity),
+            Discount = 0
+        };
         return OkB(dto);
     }
 

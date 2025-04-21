@@ -34,7 +34,7 @@ public class PhysicalProductController : BaseController
                  p.Name,
                  p.Price,
                  p.StockQuantity < 10 ? p.StockQuantity : null,
-                 _minio.GetFileUrlAsync("physical-product", p.DefaultImageFileName).Result,
+                 _minio.GetFileUrlAsync(MinioKey.PhysicalProduct, p.DefaultImageFileName).Result,
                  p.Slug
             ))
             .ToListAsync();
@@ -53,7 +53,7 @@ public class PhysicalProductController : BaseController
         var imageUrls = new List<string>();
         foreach (var img in product.ImagesPath ?? Array.Empty<string>())
         {
-            imageUrls.Add(await _minio.GetFileUrlAsync("physical-product", img));
+            imageUrls.Add(await _minio.GetFileUrlAsync(MinioKey.PhysicalProduct, img));
         }
         var productDto = new PhysicalProductDetailResponseModel(
             product.Id,
@@ -61,7 +61,7 @@ public class PhysicalProductController : BaseController
             product.Price,
             product.StockQuantity < 10 ? product.StockQuantity : null,
             product.Description,
-            _minio.GetFileUrlAsync("physical-product", product.DefaultImageFileName).Result,
+            _minio.GetFileUrlAsync(MinioKey.PhysicalProduct, product.DefaultImageFileName).Result,
             imageUrls
         );
         return OkB(productDto);

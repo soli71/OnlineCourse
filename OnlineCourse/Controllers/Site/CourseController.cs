@@ -40,7 +40,7 @@ public class CourseController : BaseController
             c.Id,
             c.Name,
             c.Price,
-             _minioService.GetFileUrlAsync("course", c.DefaultImageFileName).Result,
+             _minioService.GetFileUrlAsync(MinioKey.Course, c.DefaultImageFileName).Result,
             c.Description,
             c.DurationTime,
             c.FakeStudentsCount,
@@ -64,12 +64,12 @@ public class CourseController : BaseController
             return NotFoundB("دوره مورد نظر یافت نشد.");
         }
 
-        var imageUrl = await _minioService.GetFileUrlAsync("course", course.DefaultImageFileName);
+        var imageUrl = await _minioService.GetFileUrlAsync(MinioKey.Course, course.DefaultImageFileName);
 
         string video = null;
         if (!string.IsNullOrEmpty(course.PreviewVideoName))
         {
-            //video = await _minioService.GetFileUrlAsync("course", course.PreviewVideoName);
+            //video = await _minioService.GetFileUrlAsync(MinioKey.Course, course.PreviewVideoName);
             video = $"https://{_configuration["MinIO:Endpoint"]}/course/{course.PreviewVideoName}";
         }
         var courseCapacity = await _courseCapacityService.ExistCourseCapacityAsync(course.Id);
@@ -102,7 +102,7 @@ public class CourseController : BaseController
         {
             return NotFoundB("دوره مورد نظر یافت نشد.");
         }
-        var imageUrl = await _minioService.GetFileUrlAsync("course", course.DefaultImageFileName);
+        var imageUrl = await _minioService.GetFileUrlAsync(MinioKey.Course, course.DefaultImageFileName);
 
         return File(imageUrl, "video/mp4");
     }
