@@ -228,15 +228,19 @@ public class CartController : BaseController
 
             if (prod is Course crs)
             {
-                courseList.CourseCartItems.Add(new CourseCartItemModel
-                {
-                    Name = crs.Name,
-                    ProductId = crs.Id,
-                    Image = await _minioService.GetFileUrlAsync(MinioKey.Course, crs.DefaultImageFileName),
-                    Message = message,
-                    Quantity = ci.Quantity,
-                    Price = ci.Price
-                });
+                var courseItem = courseList.CourseCartItems.FirstOrDefault(c => c.ProductId == prod.Id);
+                if (courseItem is not null)
+                    courseItem.Quantity += ci.Quantity;
+                else
+                    courseList.CourseCartItems.Add(new CourseCartItemModel
+                    {
+                        Name = crs.Name,
+                        ProductId = crs.Id,
+                        Image = await _minioService.GetFileUrlAsync(MinioKey.Course, crs.DefaultImageFileName),
+                        Message = message,
+                        Quantity = ci.Quantity,
+                        Price = ci.Price
+                    });
 
                 if (!crs.IsPublish)
                     message = "این دوره غیرفعال شده است";
@@ -248,15 +252,19 @@ public class CartController : BaseController
             }
             else if (prod is PhysicalProduct pp)
             {
-                physicalProductList.ProductCartItems.Add(new ProductCartItemModel
-                {
-                    Name = pp.Name,
-                    ProductId = pp.Id,
-                    Image = await _minioService.GetFileUrlAsync(MinioKey.PhysicalProduct, pp.DefaultImageFileName),
-                    Message = message,
-                    Quantity = ci.Quantity,
-                    Price = ci.Price
-                });
+                var phyProduct = physicalProductList.ProductCartItems.FirstOrDefault(c => c.ProductId == prod.Id);
+                if (phyProduct is not null)
+                    phyProduct.Quantity += ci.Quantity;
+                else
+                    physicalProductList.ProductCartItems.Add(new ProductCartItemModel
+                    {
+                        Name = pp.Name,
+                        ProductId = pp.Id,
+                        Image = await _minioService.GetFileUrlAsync(MinioKey.PhysicalProduct, pp.DefaultImageFileName),
+                        Message = message,
+                        Quantity = ci.Quantity,
+                        Price = ci.Price
+                    });
 
                 if (pp.StockQuantity < ci.Quantity)
                 {
