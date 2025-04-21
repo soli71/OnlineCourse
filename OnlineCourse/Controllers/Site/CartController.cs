@@ -8,13 +8,14 @@ using OnlineCourse.Controllers.Panel;
 using OnlineCourse.Products.Entities;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
+using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
 
-public class CreateCartDto
+public class CreateCartDto : IValidatableObject
 {
     public string CartId { get; set; }
     public int ProductId { get; set; }
@@ -24,6 +25,12 @@ public class CreateCartDto
     public CreateCartDto(int productId)
     {
         ProductId = productId;
+    }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Quantity <= 0)
+            yield return new ValidationResult("تعداد محصول باید بزرگتر از 0 باشد", new[] { nameof(Quantity) });
     }
 }
 
@@ -83,12 +90,18 @@ public class CartController : BaseController
     private readonly IMinioService _minioService;
     private readonly ApplicationDbContext _context;
     private readonly ICourseCapacityService _courseCapacityService;
+    private readonly PhysicalProductService _physicalProductService;
 
-    public CartController(ApplicationDbContext context, IMinioService minioService, ICourseCapacityService courseCapacityService)
+    public CartController(
+        ApplicationDbContext context,
+        IMinioService minioService,
+        ICourseCapacityService courseCapacityService,
+        PhysicalProductService physicalProductService)
     {
         _context = context;
         _minioService = minioService;
         _courseCapacityService = courseCapacityService;
+        _physicalProductService = physicalProductService;
     }
 
     [HttpPost]
@@ -144,43 +157,38 @@ public class CartController : BaseController
             if (product is Course course)
             {
                 var courseCartItem = cart.CartItems.FirstOrDefault(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete);
+
                 if (!course.IsPublish)
                     return BadRequestB("دوره مورد نظر در دسترس نیست");
                 else if (courseCartItem is not null)
                 {
-                    if (createCartDto.Quantity < 0)
-                        courseCartItem.IsDelete = true;
-                    else
-                        return BadRequestB("این دوره در سبد خرید شما موجود می باشد.");
+                    return BadRequestB("این دوره در سبد خرید شما موجود می باشد.");
                 }
                 else if (!await _courseCapacityService.ExistCourseCapacityAsync(course.Id))
                     return BadRequestB("ظرفیت دوره تکمیل می‌باشد");
-                else if (courseCartItem is not null && createCartDto.Quantity < 0)
-                    return BadRequestB("این دوره در سبد خرید شما موجود نمی باشد.");
                 else
-
+                {
                     cart.CartItems.Add(new CartItem
                     {
                         ProductId = product.Id,
                         Quantity = createCartDto.Quantity,
                         Price = product.Price
                     });
+                }
             }
             else if (product is PhysicalProduct phys)
             {
                 if (cart.CartItems.Any(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete))
                 {
                     var cartProduct = cart.CartItems.FirstOrDefault(ci => ci.ProductId == createCartDto.ProductId && !ci.IsDelete);
-                    if (cartProduct.Quantity + createCartDto.Quantity > phys.StockQuantity)
+
+                    if (cartProduct.Quantity + createCartDto.Quantity > _physicalProductService.GetStockQuantity(product.Id))
                         return BadRequestB("موجودی محصول کافی نیست");
-                    else if ((cartProduct.Quantity + createCartDto.Quantity) < 0)
-                        return BadRequestB("محصول در سبد خرید شما وجود ندارد");
                     else
                         cartProduct.Quantity += createCartDto.Quantity;
-                    if (cartProduct.Quantity == 0)
-                        cartProduct.IsDelete = true;
+                    ;
                 }
-                else if (phys.StockQuantity <= 0)
+                else if (_physicalProductService.GetStockQuantity(product.Id) <= 0)
                     return BadRequestB("موجودی محصول کافی نیست");
                 else
 
@@ -241,6 +249,12 @@ public class CartController : BaseController
             if (prod is Course crs)
             {
                 var courseItem = courseList.CourseCartItems.FirstOrDefault(c => c.ProductId == prod.Id);
+
+                if (!crs.IsPublish)
+                    message = "این دوره غیرفعال شده است";
+                else if (!await _courseCapacityService.ExistCourseCapacityAsync(crs.Id))
+                    message = "ظرفیت دوره تکمیل است";
+
                 if (courseItem is not null)
                     courseItem.Quantity += ci.Quantity;
                 else
@@ -254,16 +268,22 @@ public class CartController : BaseController
                         Price = ci.Price
                     });
 
-                if (!crs.IsPublish)
-                    message = "این دوره غیرفعال شده است";
-                else if (!await _courseCapacityService.ExistCourseCapacityAsync(crs.Id))
-                    message = "ظرفیت دوره تکمیل است";
-
                 if (!string.IsNullOrEmpty(message))
-                    ci.IsDelete = true;
+                    _context.CartItems.Remove(ci);
             }
             else if (prod is PhysicalProduct pp)
             {
+                var stockQuantity = _physicalProductService.GetStockQuantity(pp.Id);
+                if (stockQuantity < ci.Quantity)
+                {
+                    if (stockQuantity == 0)
+                        message = "به دلیل اتمام موجودی این آیتم از سبد خرید حذف گردید";
+                    else
+                        message = "موجودی کالا تغییر کرده است و کمتر از مقدار درخواستی شما می باشد";
+
+                    _context.CartItems.Remove(ci);
+                }
+
                 var phyProduct = physicalProductList.ProductCartItems.FirstOrDefault(c => c.ProductId == prod.Id);
                 if (phyProduct is not null)
                     phyProduct.Quantity += ci.Quantity;
@@ -277,12 +297,6 @@ public class CartController : BaseController
                         Quantity = ci.Quantity,
                         Price = ci.Price
                     });
-
-                if (pp.StockQuantity < ci.Quantity)
-                {
-                    message = "موجودی محصول کافی نیست";
-                    ci.IsDelete = true;
-                }
             }
         }
 
@@ -303,8 +317,8 @@ public class CartController : BaseController
         return OkB(dto);
     }
 
-    [HttpDelete("{id}/product/{productId}")]
-    public async Task<IActionResult> Delete(string id, int productId)
+    [HttpDelete("{id}/product/{productId}/{all}")]
+    public async Task<IActionResult> Delete(string id, int productId, bool all)
     {
         int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId);
 
@@ -326,7 +340,16 @@ public class CartController : BaseController
         if (item == null)
             return NotFoundB("محصول مورد نظر در سبد وجود ندارد");
 
-        item.IsDelete = true;
+        if (all)
+        {
+            cart.CartItems.Remove(item);
+        }
+        else
+        {
+            item.Quantity--;
+            if (item.Quantity <= 0)
+                cart.CartItems.Remove(item);
+        }
         await _context.SaveChangesAsync();
         return OkB();
     }
@@ -337,18 +360,39 @@ public class CartController : BaseController
     {
         var user = HttpContext.User;
         var userId = int.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier));
-        var cart = await _context.Carts
+        var cart = await _context.Carts.Include(c => c.CartItems)
             .FirstOrDefaultAsync(c => c.Id == Guid.Parse(id) && c.Status == CartStatus.Active);
+
         if (cart == null)
             return NotFoundB("سبد خرید مورد نظر یافت نشد");
-        if (cart.UserId == null)
-        {
-            cart.UserId = userId;
-            await _context.SaveChangesAsync();
-        }
-        else if (cart.UserId != userId)
+
+        if (cart.UserId is not null && cart.UserId != default && cart.UserId != userId)
             return BadRequestB("سبد خرید متعلق به کاربر دیگری است");
 
+        var existUserAnotherCart = _context.Carts.Include(c => c.CartItems).FirstOrDefault(c => c.UserId == userId && c.Status == CartStatus.Active && c.Id != Guid.Parse(id));
+        if (existUserAnotherCart is not null)
+        {
+            //Combine two carts
+            foreach (var item in cart.CartItems)
+            {
+                var existItem = existUserAnotherCart.CartItems.FirstOrDefault(c => c.ProductId == item.ProductId && !c.IsDelete);
+                if (existItem is not null)
+                {
+                    existItem.Quantity += item.Quantity;
+                    _context.CartItems.Remove(item);
+                }
+                else
+                {
+                    existUserAnotherCart.CartItems.Add(item);
+                }
+            }
+            _context.Carts.Remove(cart);
+        }
+        else if (cart.UserId == null)
+        {
+            cart.UserId = userId;
+        }
+        await _context.SaveChangesAsync();
         return OkB();
     }
 }

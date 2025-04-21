@@ -11,15 +11,22 @@ using OnlineCourse.Orders;
 using OnlineCourse.Products.Entities;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
 
-public class CreateOrderRequestDto
+public class CreateOrderRequestModel
 {
     public string CartId { get; set; }
+
+    public int? AddressId { get; set; }
+
+    public string Description { get; set; }
+    public string ReceiverName { get; set; }
+    public string ReceiverPhoneNumber { get; set; }
 }
 
 [Route("api/site/[controller]")]
@@ -42,7 +49,7 @@ public class OrderController : BaseController
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateOrder(CreateOrderRequestDto createOrderRequestDto)
+    public async Task<IActionResult> CreateOrder(CreateOrderRequestModel createOrderRequestDto)
     {
         Expression<Func<Cart, bool>> predict = c => c.UserId == 33333333333;
         int userId = 0;
@@ -58,7 +65,6 @@ public class OrderController : BaseController
             Guid.TryParse(createOrderRequestDto.CartId, out var cartId);
             predict = c => c.Id == cartId && c.Status == CartStatus.Active;
         }
-
         var cart = await _context.Carts
             .Include(x => x.CartItems)
             .ThenInclude(x => x.Product)
@@ -67,6 +73,14 @@ public class OrderController : BaseController
         if (cart == null || !cart.CartItems.Any())
             return BadRequestB("سبد خرید شما خالی می باشد");
 
+        var addressId = createOrderRequestDto.AddressId == default || createOrderRequestDto.AddressId == null ? default : createOrderRequestDto.AddressId;
+
+        if (cart.CartItems.Any(c => c.Product as PhysicalProduct != null && (addressId == default)))
+            return BadRequestB("سبد خرید شما شامل محصول فیزیکی می باشد. برای خرید محصول فیزیکی انتخاب ادرس الزامی می باشد");
+
+        var existUserAddress = _context.UserAddresses.Any(c => c.Id == addressId && c.UserId == userId);
+        if (!existUserAddress)
+            return BadRequestB("آدرس کاربر ناصحیح است");
         decimal totalPrice = 0;
         foreach (var ci in cart.CartItems)
         {
@@ -111,8 +125,12 @@ public class OrderController : BaseController
                 TotalPrice = totalPrice,
                 OrderDate = DateTime.UtcNow,
                 Status = OrderStatus.Pending,
+                ReceiverName = createOrderRequestDto.ReceiverName,
+                ReceiverPhoneNumber = createOrderRequestDto.ReceiverPhoneNumber,
+                Description = createOrderRequestDto.Description,
+                AddressId = int.Parse(addressId.ToString()),
                 OrderCode = $"OC-{seq}",
-                OrderDetails = cart.CartItems.Where(c=>!c.IsDelete && c.Quantity>=0).Select(ci => new OrderDetails
+                OrderDetails = cart.CartItems.Where(c => !c.IsDelete && c.Quantity >= 0).Select(ci => new OrderDetails
                 {
                     ProductId = ci.ProductId,
                     Quantity = ci.Quantity,
@@ -166,7 +184,8 @@ public class OrderController : BaseController
                 o.TotalPrice,
                 o.OrderDate.ToPersianDateTime(),
                 o.OrderCode,
-                o.OrderDetails.Select(od => new GetOrderDetailSiteDto(
+                o.TrackingCode ?? "-",
+        o.OrderDetails.Select(od => new GetOrderDetailSiteDto(
                     od.Product.Name,
                     od.Quantity,
                     od.UnitPrice)
@@ -184,6 +203,7 @@ public record GetOrderSiteDto(
       decimal TotalPrice,
       string OrderDate,
       string OrderCode,
+      string TrackingCode,
       List<GetOrderDetailSiteDto> Details
   );
 

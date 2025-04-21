@@ -15,9 +15,6 @@ public class PhysicalProductUpdatRequestModel : IValidatableObject
     [Range(0, double.MaxValue)]
     public decimal Price { get; init; }
 
-    [Range(0, int.MaxValue)]
-    public int StockQuantity { get; init; }
-
     public bool IsPublish { get; init; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
@@ -29,10 +26,6 @@ public class PhysicalProductUpdatRequestModel : IValidatableObject
         if (Price < 0)
         {
             yield return new ValidationResult("Price must be a positive number.", new[] { nameof(Price) });
-        }
-        if (StockQuantity < 0)
-        {
-            yield return new ValidationResult("Stock quantity must be a non-negative integer.", new[] { nameof(StockQuantity) });
         }
     }
 }

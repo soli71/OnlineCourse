@@ -19,10 +19,14 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
     public DbSet<Order> Orders { get; set; }
     public DbSet<OrderDetails> OrderDetails { get; set; }
     public DbSet<Cart> Carts { get; set; }
+    public DbSet<CartItem> CartItems { get; set; }
     public DbSet<OrderStatusHistory> OrderStatusHistories { get; set; }
     public DbSet<CourseSeason> CourseSeasons { get; set; }
     public DbSet<HeadLines> HeadLines { get; set; }
     public DbSet<Blog> Blogs { get; set; }
+    public DbSet<City> Cities { get; set; }
+    public DbSet<Province> Provinces { get; set; }
+    public DbSet<UserAddress> UserAddresses { get; set; }
 
     public DbSet<SiteSetting> SiteSettings { get; set; }
 

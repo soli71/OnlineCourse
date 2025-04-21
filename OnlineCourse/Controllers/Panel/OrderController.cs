@@ -6,6 +6,7 @@ using OnlineCourse.Contexts;
 using OnlineCourse.Extensions;
 using OnlineCourse.Orders;
 using OnlineCourse.Products.Entities;
+using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
@@ -42,10 +43,24 @@ public class GetOrderDto
     public int Id { get; init; }
     public string OrderCode { get; init; }
     public string UserPhoneNumber { get; init; }
+
+    public string Description { get; set; }
     public string Status { get; init; }
     public decimal TotalPrice { get; init; }
     public string OrderDate { get; init; }
+    public string TrackingCode { get; set; }
     public List<GetOrderDetailsDto> OrderDetails { get; init; }
+    public OrderAddress OrderAddress { get; set; }
+}
+
+public class OrderAddress
+{
+    public string Province { get; set; }
+    public string City { get; set; }
+    public string PostalCode { get; set; }
+    public string Address { get; set; }
+    public string ReceiverName { get; set; }
+    public string ReceiverPhoneNumber { get; set; }
 }
 
 public class GetOrderDetailsDto
@@ -77,15 +92,19 @@ public class OrderController : BaseController
     private readonly ApplicationDbContext _context;
     private readonly ISpotPlayerService _spotPlayerService;
     private readonly ISmsService _smsService;
+    private readonly PhysicalProductService _physicalProductService;
+    private readonly object _lock = new();
 
     public OrderController(
         ApplicationDbContext context,
         ISpotPlayerService spotPlayerService,
-        ISmsService smsService)
+        ISmsService smsService,
+        PhysicalProductService physicalProductService)
     {
         _context = context;
         _spotPlayerService = spotPlayerService;
         _smsService = smsService;
+        _physicalProductService = physicalProductService;
     }
 
     [HttpGet]
@@ -152,6 +171,17 @@ public class OrderController : BaseController
             UnitPrice = od.UnitPrice,
         }).ToList();
 
+        var userAddress = _context.UserAddresses.FirstOrDefault(c => c.Id == order.AddressId);
+
+        var address = new OrderAddress
+        {
+            Province = userAddress?.City?.Province?.Name ?? "",
+            City = userAddress?.City?.Name ?? "",
+            PostalCode = userAddress?.PostalCode ?? "",
+            Address = userAddress?.Address ?? "",
+            ReceiverName = order.ReceiverName ?? "",
+            ReceiverPhoneNumber = order.ReceiverPhoneNumber ?? ""
+        };
         var dto = new GetOrderDto
         {
             Id = order.Id,
@@ -160,7 +190,10 @@ public class OrderController : BaseController
             OrderCode = order.OrderCode,
             OrderDate = order.OrderDate.ToPersianDateTime(),
             TotalPrice = order.TotalPrice,
-            OrderDetails = details
+            OrderDetails = details,
+            Description = order.Description,
+            OrderAddress = address,
+            TrackingCode = order.TrackingCode
         };
 
         return OkB(dto);
@@ -180,85 +213,99 @@ public class OrderController : BaseController
         if (order.Status == OrderStatus.Paid)
             return BadRequestB("این سفارش قبلا پرداخت شده است");
 
-        if (changeStatusDto.Status == OrderStatus.Paid)
+        lock (_lock)
         {
-            foreach (var od in order.OrderDetails)
+            if (changeStatusDto.Status == OrderStatus.Paid)
             {
-                switch (od.Product)
+                foreach (var od in order.OrderDetails)
                 {
-                    case Course course:
-                        // Check capacity
-                        if (course.Limit > 0)
-                        {
-                            var inFlight = await _context.OrderDetails
-                                .Where(x => x.ProductId == od.ProductId &&
-                                           (x.Order.Status == OrderStatus.Paid ||
-                                            (x.Order.Status == OrderStatus.Pending &&
-                                             x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
-                                .CountAsync();
-
-                            if (inFlight > course.Limit)
-                                return BadRequestB("ظرفیت دوره تکمیل می باشد");
-                        }
-
-                        // Issue license
-                        if (string.IsNullOrEmpty(course.SpotPlayerCourseId))
-                            return NotFoundB("شناسه اسپات پلیر دوره یافت نشد");
-
-                        var user = await _context.Users.FindAsync(order.UserId);
-                        var spotResult = await _spotPlayerService
-                            .GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, true);
-
-                        if (spotResult.IsSuccess)
-                        {
-                            var licenseEntry = new License
+                    switch (od.Product)
+                    {
+                        case Course course:
+                            // Check capacity
+                            if (course.Limit > 0)
                             {
-                                Key = spotResult.Result.Key,
-                                UserId = order.UserId,
-                                OrderDetailId = od.Id,
-                                IssuedDate = DateTime.UtcNow,
-                                ExpirationDate = null,
-                                Status = LicenseStatus.Active
-                            };
-                            _context.Licenses.Add(licenseEntry);
-                        }
-                        else
-                        {
-                            od.Description += $" {spotResult.Description}";
-                        }
+                                var inFlight = _context.OrderDetails
+                                    .Where(x => x.ProductId == od.ProductId &&
+                                               (x.Order.Status == OrderStatus.Paid ||
+                                                (x.Order.Status == OrderStatus.Pending &&
+                                                 x.Order.OrderDate.AddMinutes(60) > DateTime.UtcNow)))
+                                    .Count();
 
-                        await _smsService.SendCoursePaidSuccessfully(user.PhoneNumber, course.Name);
-                        break;
+                                if (inFlight > course.Limit)
+                                    return BadRequestB("ظرفیت دوره تکمیل می باشد");
+                            }
 
-                    case PhysicalProduct product:
-                        // Stock check and decrement
-                        if (product.StockQuantity < od.Quantity)
-                            return BadRequestB($"موجودی محصول {product.Name} کافی نیست");
+                            // Issue license
+                            if (string.IsNullOrEmpty(course.SpotPlayerCourseId))
+                                return NotFoundB("شناسه اسپات پلیر دوره یافت نشد");
 
-                        product.StockQuantity -= od.Quantity;
-                        //await _smsService.SendPhysicalProductShippingNotice(
-                        //    order.User.PhoneNumber, product.Name, od.Quantity);
-                        break;
+                            var user = _context.Users.Find(order.UserId);
+                            var spotResult = _spotPlayerService
+                                .GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, true).Result;
 
-                    default:
-                        return BadRequestB("نوع محصول ناشناخته است");
+                            if (spotResult.IsSuccess)
+                            {
+                                var licenseEntry = new License
+                                {
+                                    Key = spotResult.Result.Key,
+                                    UserId = order.UserId,
+                                    OrderDetailId = od.Id,
+                                    IssuedDate = DateTime.UtcNow,
+                                    ExpirationDate = null,
+                                    Status = LicenseStatus.Active
+                                };
+                                _context.Licenses.Add(licenseEntry);
+                            }
+                            else
+                            {
+                                od.Description += $" {spotResult.Description}";
+                            }
+
+                            _smsService.SendCoursePaidSuccessfully(user.PhoneNumber, course.Name).Wait();
+                            break;
+
+                        case PhysicalProduct product:
+                            // Stock check and decrement
+                            if (_physicalProductService.GetStockQuantity(product.Id) < od.Quantity)
+                                return BadRequestB($"موجودی محصول {product.Name} کافی نیست");
+
+                            product.DecreaseStockQuantity(od.Quantity);
+                            //await _smsService.SendPhysicalProductShippingNotice(
+                            //    order.User.PhoneNumber, product.Name, od.Quantity);
+                            break;
+
+                        default:
+                            return BadRequestB("نوع محصول ناشناخته است");
+                    }
+
+                    _context.SaveChanges();
                 }
-
-                await _context.SaveChangesAsync();
             }
+
+            order.Status = changeStatusDto.Status;
+            _context.OrderStatusHistories.Add(new OrderStatusHistory
+            {
+                OrderId = order.Id,
+                Status = changeStatusDto.Status,
+                Description = changeStatusDto.Description,
+                UserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)),
+                Date = DateTime.UtcNow
+            });
+
+            _context.SaveChanges();
         }
+        return OkB();
+    }
 
-        order.Status = changeStatusDto.Status;
-        _context.OrderStatusHistories.Add(new OrderStatusHistory
-        {
-            OrderId = order.Id,
-            Status = changeStatusDto.Status,
-            Description = changeStatusDto.Description,
-            UserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)),
-            Date = DateTime.UtcNow
-        });
-
-        await _context.SaveChangesAsync();
+    [HttpPatch("{id:int}/tracking-code/{trackingCode}")]
+    public IActionResult TrackingCode(int id, string trackingCode)
+    {
+        var order = _context.Orders.FirstOrDefault(c => c.Id == id);
+        if (order == null)
+            return NotFoundB("سفارش مورد نظر یافت نشد");
+        order.TrackingCode = trackingCode;
+        _context.SaveChanges();
         return OkB();
     }
 

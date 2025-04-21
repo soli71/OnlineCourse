@@ -29,6 +29,7 @@ builder.Services.AddControllers();
 
 //builder.Services.AddOpenApi();
 builder.Services.AddScoped<ISmsService, SmsService>();
+builder.Services.AddScoped<PhysicalProductService>();
 builder.Services.AddSwaggerGen(c =>
 {
     // 1. دو سند مجزا: site و panel

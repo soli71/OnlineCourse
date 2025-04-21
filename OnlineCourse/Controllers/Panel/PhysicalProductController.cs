@@ -94,10 +94,10 @@ public class PhysicalProductsController : BaseController
             Description = dto.Description,
             Price = dto.Price,
             DefaultImageFileName = fileName,
-            StockQuantity = dto.StockQuantity,
             IsPublish = dto.IsPublish,
             Slug = dto.Name,
         };
+        product.SetStockQuantity(dto.StockQuantity);
 
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
@@ -119,7 +119,6 @@ public class PhysicalProductsController : BaseController
         product.Name = dto.Name;
         product.Description = dto.Description;
         product.Price = dto.Price;
-        product.StockQuantity = dto.StockQuantity;
         product.IsPublish = dto.IsPublish;
 
         _context.Entry(product).State = EntityState.Modified;

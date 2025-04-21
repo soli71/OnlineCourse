@@ -23,6 +23,12 @@ public class Order
     public DateTime OrderDate { get; set; }
     public string OrderCode { get; set; }
     public OrderStatus Status { get; set; }
+    public string ReceiverName { get; set; }
+    public string ReceiverPhoneNumber { get; set; }
+    public string Description { get; set; }
+    public string TrackingCode { get; set; }
+    public UserAddress Address { get; set; }
+    public int AddressId { get; set; }
     public List<OrderDetails> OrderDetails { get; set; }
 }
 
@@ -35,5 +41,8 @@ public enum OrderStatus
     Paid = 2,
 
     [Display(Name = "لغو شده")]
-    Canceled = 3
+    Canceled = 3,
+
+    [Display(Name = "ارسال شده")]
+    Sent = 4,
 }
