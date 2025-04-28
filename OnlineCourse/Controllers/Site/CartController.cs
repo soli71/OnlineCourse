@@ -54,6 +54,9 @@ public class CourseCartListModel : ICartItemCount
     public List<CourseCartItemModel> CourseCartItems { get; set; } = new();
 
     public int ProductItemCount => CourseCartItems.Count;
+    public int ProductCount => CourseCartItems.Sum(c => c.Quantity);
+
+    public decimal TotalPrice => CourseCartItems.Sum(c => c.Quantity * c.Price);
 }
 
 public class ProductCartItemModel
@@ -70,6 +73,8 @@ public class PhysicalProductCartListModel : ICartItemCount
 {
     public List<ProductCartItemModel> ProductCartItems { get; set; } = new();
     public int ProductItemCount => ProductCartItems.Count;
+    public decimal TotalPrice => ProductCartItems.Sum(c => c.Quantity * c.Price);
+    public int ProductCount => ProductCartItems.Sum(c => c.Quantity);
 }
 
 public class CartListModel
