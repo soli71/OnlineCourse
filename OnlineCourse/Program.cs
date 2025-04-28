@@ -163,7 +163,8 @@ if (enableRateLimit)
                     var key = httpContext.User.Identity?.IsAuthenticated == true
              ? httpContext.User.Identity.Name!
              : httpContext.Connection.RemoteIpAddress!.ToString()!;
-                    return RateLimitPartition.GetConcurrencyLimiter(key, _ => concurrencyLimiter)}
+                    return RateLimitPartition.GetConcurrencyLimiter(key, _ => concurrencyLimiter);
+                }
                 );
                 limiters.Add(concurrencyLimit);
             }
