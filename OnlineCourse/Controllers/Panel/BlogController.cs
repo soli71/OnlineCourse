@@ -36,7 +36,8 @@ namespace OnlineCourse.Controllers.Panel
             };
             if (createDto.Image != null)
             {
-                var fileName = $"{Guid.NewGuid()}-{blog.Title}";
+                var fileName = $"{Guid.NewGuid()}-{blog.Title}.{Path.GetFileName(createDto.Image.FileName)}";
+
                 string tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
 
                 using (var stream = new FileStream(tempFilePath, FileMode.Create))
@@ -68,7 +69,7 @@ namespace OnlineCourse.Controllers.Panel
             blog.IsPublish = updateDto.IsPublish;
             if (updateDto.Image != null)
             {
-                var fileName = $"{Guid.NewGuid()}-{blog.Title}";
+                var fileName = $"{Guid.NewGuid()}-{blog.Title}.{Path.GetFileName(updateDto.Image.FileName)}";
                 string tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
                 using (var stream = new FileStream(tempFilePath, FileMode.Create))
                 {
