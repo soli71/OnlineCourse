@@ -36,13 +36,13 @@ namespace OnlineCourse.Controllers.Panel
             };
             if (createDto.Image != null)
             {
-                var fileName = $"{Guid.NewGuid()}-{blog.Title}.{Path.GetFileName(createDto.Image.FileName)}";
+                var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(createDto.Image.FileName)}";
 
                 string tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
 
                 using (var stream = new FileStream(tempFilePath, FileMode.Create))
                 {
-                    createDto.Image.CopyTo(stream);
+                    await createDto.Image.CopyToAsync(stream);
                 }
                 await _minioService.UploadFileAsync("ma-blog", fileName, tempFilePath, createDto.Image.ContentType);
                 blog.ImageFileName = fileName;
@@ -56,7 +56,7 @@ namespace OnlineCourse.Controllers.Panel
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update([FromRoute] int id, [FromForm] BlogCreateDto updateDto)
+        public async Task<IActionResult> UpdateAsync([FromRoute] int id, [FromForm] BlogCreateDto updateDto)
         {
             var blog = _context.Blogs.Find(id);
             if (blog == null)
@@ -69,16 +69,17 @@ namespace OnlineCourse.Controllers.Panel
             blog.IsPublish = updateDto.IsPublish;
             if (updateDto.Image != null)
             {
-                var fileName = $"{Guid.NewGuid()}-{blog.Title}.{Path.GetFileName(updateDto.Image.FileName)}";
+                var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(updateDto.Image.FileName)}";
                 string tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
+
                 using (var stream = new FileStream(tempFilePath, FileMode.Create))
                 {
-                    updateDto.Image.CopyTo(stream);
+                    await updateDto.Image.CopyToAsync(stream);
                 }
                 //delete old file
-                _minioService.DeleteFileAsync("ma-blog", blog.ImageFileName);
+                await _minioService.DeleteFileAsync("ma-blog", blog.ImageFileName);
                 //upload new file
-                _minioService.UploadFileAsync("ma-blog", fileName, tempFilePath, updateDto.Image.ContentType);
+                await _minioService.UploadFileAsync("ma-blog", fileName, tempFilePath, updateDto.Image.ContentType);
                 blog.ImageFileName = fileName;
                 //remove file in temp path
                 System.IO.File.Delete(tempFilePath);
