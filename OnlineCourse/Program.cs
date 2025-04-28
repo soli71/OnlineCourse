@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.BearerToken;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -13,6 +14,7 @@ using OnlineCourse.Identity;
 using OnlineCourse.Identity.Entities;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
+using System.Net.Http;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 
@@ -130,41 +132,62 @@ if (enableRateLimit)
             if (globalLimiterOptions.GlobalFixedWindowLimiterOptions.Enabled)
             {
                 var fixedWindowLimiter = globalLimiterOptions.GlobalFixedWindowLimiterOptions.FixedWindowRateLimiterOptions;
-                var fixedLimit = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                    RateLimitPartition.GetFixedWindowLimiter("FixedWindowLimiter", _ => fixedWindowLimiter));
+                var fixedLimit = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                {
+                    var key = httpContext.User.Identity?.IsAuthenticated == true
+                    ? httpContext.User.Identity.Name!
+                    : httpContext.Connection.RemoteIpAddress!.ToString()!;
+                    return RateLimitPartition.GetFixedWindowLimiter(key, _ => fixedWindowLimiter);
+                });
                 limiters.Add(fixedLimit);
             }
 
             if (globalLimiterOptions.GlobalTokenBucketLimiterOptions.Enabled)
             {
                 var tokenBucketLimiter = globalLimiterOptions.GlobalTokenBucketLimiterOptions.TokenBucketRateLimiterOptions;
-                var bucketLimit = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                    RateLimitPartition.GetTokenBucketLimiter("TokenBucketLimiter", _ => tokenBucketLimiter));
+                var bucketLimit = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                {
+                    var key = httpContext.User.Identity?.IsAuthenticated == true
+                ? httpContext.User.Identity.Name!
+                : httpContext.Connection.RemoteIpAddress!.ToString()!;
+                    return RateLimitPartition.GetTokenBucketLimiter(key, _ => tokenBucketLimiter);
+                });
                 limiters.Add(bucketLimit);
             }
 
             if (globalLimiterOptions.GlobalConcurrencyLimiterOptions.Enabled)
             {
                 var concurrencyLimiter = globalLimiterOptions.GlobalConcurrencyLimiterOptions.ConcurrencyLimiterOptions;
-                var concurrencyLimit = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                    RateLimitPartition.GetConcurrencyLimiter("ConcurrencyLimiter", _ => concurrencyLimiter));
+                var concurrencyLimit = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                {
+                    var key = httpContext.User.Identity?.IsAuthenticated == true
+             ? httpContext.User.Identity.Name!
+             : httpContext.Connection.RemoteIpAddress!.ToString()!;
+                    return RateLimitPartition.GetConcurrencyLimiter(key, _ => concurrencyLimiter)}
+                );
                 limiters.Add(concurrencyLimit);
             }
 
             options.GlobalLimiter = PartitionedRateLimiter.CreateChained(limiters.ToArray());
         }
         else
-            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            RateLimitPartition.GetTokenBucketLimiter("DefaultRateLimiter",
-             _ => new TokenBucketRateLimiterOptions
-             {
-                 TokenLimit = 1000,
-                 AutoReplenishment = true,
-                 ReplenishmentPeriod = TimeSpan.FromSeconds(1),
-                 TokensPerPeriod = 10,
-                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                 QueueLimit = 2,
-             }));
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+            {
+                var key = httpContext.User.Identity?.IsAuthenticated == true
+? httpContext.User.Identity.Name!
+: httpContext.Connection.RemoteIpAddress!.ToString()!;
+
+                return RateLimitPartition.GetTokenBucketLimiter("DefaultRateLimiter",
+                 _ => new TokenBucketRateLimiterOptions
+                 {
+                     TokenLimit = 1000,
+                     AutoReplenishment = true,
+                     ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                     TokensPerPeriod = 10,
+                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                     QueueLimit = 2,
+                 });
+            });
 
         options.OnRejected = async (context, cancellationToken) =>
         {
@@ -252,7 +275,20 @@ app.UseSwaggerUI(c =>
 //}
 
 if (enableRateLimit)
-    app.UseRateLimiter();
+    app.UseRateLimiter(new Microsoft.AspNetCore.RateLimiting.RateLimiterOptions
+    {
+        GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            RateLimitPartition.GetTokenBucketLimiter("DefaultRateLimiter",
+             _ => new TokenBucketRateLimiterOptions
+             {
+                 TokenLimit = 1000,
+                 AutoReplenishment = true,
+                 ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                 TokensPerPeriod = 10,
+                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                 QueueLimit = 2,
+             }))
+    });
 
 app.UseStaticFiles();
 app.UseHttpsRedirection();
