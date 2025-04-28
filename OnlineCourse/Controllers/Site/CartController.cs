@@ -67,6 +67,7 @@ public class ProductCartItemModel
     public string Image { get; set; }
     public string Message { get; set; }
     public int Quantity { get; set; }
+    public int StockQuantity { get; set; }
 }
 
 public class PhysicalProductCartListModel : ICartItemCount
@@ -261,7 +262,9 @@ public class CartController : BaseController
                     message = "ظرفیت دوره تکمیل است";
 
                 if (courseItem is not null)
+                {
                     courseItem.Quantity += ci.Quantity;
+                }
                 else
                     courseList.CourseCartItems.Add(new CourseCartItemModel
                     {
@@ -289,9 +292,14 @@ public class CartController : BaseController
                     _context.CartItems.Remove(ci);
                 }
 
+                var productStockQuantity = _physicalProductService.GetStockQuantity(prod.Id);
+
                 var phyProduct = physicalProductList.ProductCartItems.FirstOrDefault(c => c.ProductId == prod.Id);
                 if (phyProduct is not null)
+                {
                     phyProduct.Quantity += ci.Quantity;
+                    phyProduct.StockQuantity = productStockQuantity;
+                }
                 else
                     physicalProductList.ProductCartItems.Add(new ProductCartItemModel
                     {
@@ -300,7 +308,8 @@ public class CartController : BaseController
                         Image = await _minioService.GetFileUrlAsync(MinioKey.PhysicalProduct, pp.DefaultImageFileName),
                         Message = message,
                         Quantity = ci.Quantity,
-                        Price = ci.Price
+                        Price = ci.Price,
+                        StockQuantity = productStockQuantity
                     });
             }
         }

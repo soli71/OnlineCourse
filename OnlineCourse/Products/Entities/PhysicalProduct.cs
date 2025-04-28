@@ -18,7 +18,7 @@ public class PhysicalProduct : Product
     public void DecreaseStockQuantity(int quantity)
     {
         if (quantity <= 0)
-        { }
+        { return; }
         if (quantity > StockQuantity)
         {
             throw new InvalidOperationException("Insufficient stock quantity.");
