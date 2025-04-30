@@ -383,7 +383,8 @@ public class CartController : BaseController
         if (cart.UserId is not null && cart.UserId != default && cart.UserId != userId)
             return BadRequestB("سبد خرید متعلق به کاربر دیگری است");
 
-        var existUserAnotherCart = _context.Carts.Include(c => c.CartItems).FirstOrDefault(c => c.UserId == userId && c.Status == CartStatus.Active && c.Id != Guid.Parse(id));
+        var existUserAnotherCart = _context.Carts.Include(c => c.CartItems)
+            .ThenInclude(c => c.Product).FirstOrDefault(c => c.UserId == userId && c.Status == CartStatus.Active && c.Id != Guid.Parse(id));
         if (existUserAnotherCart is not null)
         {
             //Combine two carts
@@ -392,7 +393,9 @@ public class CartController : BaseController
                 var existItem = existUserAnotherCart.CartItems.FirstOrDefault(c => c.ProductId == item.ProductId && !c.IsDelete);
                 if (existItem is not null)
                 {
-                    existItem.Quantity += item.Quantity;
+                    if (existItem.Product is not Course)
+                        existItem.Quantity += item.Quantity;
+
                     _context.CartItems.Remove(item);
                 }
                 else

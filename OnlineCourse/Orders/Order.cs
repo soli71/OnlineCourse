@@ -1,4 +1,6 @@
-﻿using OnlineCourse.Identity.Entities;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using OnlineCourse.Identity.Entities;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineCourse.Orders;
@@ -12,6 +14,17 @@ public class OrderStatusHistory
     public DateTime Date { get; set; }
     public int UserId { get; set; }
     public string Description { get; set; }
+}
+
+public class OrderConfig : IEntityTypeConfiguration<Order>
+{
+    public void Configure(EntityTypeBuilder<Order> builder)
+    {
+        builder.HasOne(o => o.Address)
+            .WithMany()
+            .HasForeignKey(c => c.AddressId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
 }
 
 public class Order
