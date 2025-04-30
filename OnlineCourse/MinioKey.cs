@@ -6,4 +6,9 @@
 
         public const string Course = "course";
     }
+
+    public static class IdentityKey
+    {
+        public const string LoginVerificationCode = "{0}-login-verification-code";
+    }
 }

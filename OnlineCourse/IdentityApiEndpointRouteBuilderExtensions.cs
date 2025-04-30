@@ -11,10 +11,12 @@ using OnlineCourse.Identity.Entities;
 using OnlineCourse.Models;
 using OnlineCourse.Services;
 using QRCoder;
+using System.Buffers;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text;
+using static QRCoder.PayloadGenerator;
 
 namespace OnlineCourse;
 
@@ -85,7 +87,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             }
             await userManager.AddToRoleAsync(user, "User");
 
-            await SendConfirmationMobileAsync(user, userManager, smsService, phoneNumber, sp.GetRequiredService<IMemoryCache>(), registration.Password);
+            await SendConfirmationMobileAsync(string.Format(IdentityKey.LoginVerificationCode, user.Id), user, userManager, smsService, phoneNumber, sp.GetRequiredService<IMemoryCache>(), registration.Password);
             return TypedResults.Ok();
         });
 
@@ -122,6 +124,67 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             // The signInManager already produced the needed response in the form of a cookie or bearer token.
             return TypedResults.Empty;
         });
+
+        routeGroup.MapPost("site/login/enter-mobile", async Task<Results<Ok<VerificationResponse>, EmptyHttpResult, ProblemHttpResult>>
+            ([FromBody] LoginWithoutPasswordRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
+        {
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.Users.FirstOrDefaultAsync(c => c.UserName == login.PhoneNumber);
+
+            if (user is null)
+            {
+                user = new TUser()
+                {
+                    PhoneNumber = login.PhoneNumber,
+                    UserName = login.PhoneNumber,
+                    Type = UserType.Site
+                };
+                var result = await userManager.CreateAsync(user);
+            }
+            else if (user.Inactive)
+            {
+                return TypedResults.Problem("حساب کاربری شما غیر فعال شده است", statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var smsService = sp.GetRequiredService<ISmsService>();
+
+            var response = await SendConfirmationMobileAsync(string.Format(IdentityKey.LoginVerificationCode, user.Id), user, userManager, smsService, login.PhoneNumber, sp.GetRequiredService<IMemoryCache>());
+
+            // The signInManager already produced the needed response in the form of a cookie or bearer token.
+            return TypedResults.Ok(response);
+        });
+
+        routeGroup.MapPost("site/login/2fa", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
+    ([FromBody] LoginWithoutPassword login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
+        {
+            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var user = await userManager.Users.FirstOrDefaultAsync(c => c.UserName == login.PhoneNumber);
+
+            if (user.Inactive)
+            {
+                return TypedResults.Problem("حساب کاربری شما غیر فعال شده است", statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var memoryCache = sp.GetRequiredService<IMemoryCache>();
+
+            memoryCache.TryGetValue(string.Format(IdentityKey.LoginVerificationCode, user.Id), out VerificationStoreModel cacheCode);
+
+            if (cacheCode == null || cacheCode.VerificationCode.ToString() != login.Code)
+                return TypedResults.Problem("کد تایید اشتباه است", statusCode: StatusCodes.Status401Unauthorized);
+
+            signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
+            await signInManager.SignInAsync(user, true);
+
+            memoryCache.Remove(string.Format(IdentityKey.LoginVerificationCode, user.Id));
+            user.PhoneNumberConfirmed = true;
+            await userManager.UpdateAsync(user);
+            // The signInManager already produced the needed response in the form of a cookie or bearer token.
+            return TypedResults.Empty;
+        });
+
+        //==================================================================================================================================
 
         routeGroup.MapGet("/me", Results<Ok<MeModel>, EmptyHttpResult, ProblemHttpResult>
             ([FromServices] IServiceProvider sp) =>
@@ -174,7 +237,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
 
             var memoryCache = sp.GetRequiredService<IMemoryCache>();
 
-            memoryCache.TryGetValue($"{user.Id}-VerificationCode", out VerificationStoreModel cacheCode);
+            memoryCache.TryGetValue(string.Format(IdentityKey.LoginVerificationCode, user.Id), out VerificationStoreModel cacheCode);
 
             if (cacheCode == null || cacheCode.VerificationCode.ToString() != request.Code
             || request.PhoneNumber != cacheCode.PhoneNumber)
@@ -186,7 +249,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             await userManager.UpdateAsync(user);
 
             var password = cacheCode.Password;
-            memoryCache.Remove($"{user.Id}-VerificationCode");
+            memoryCache.Remove(string.Format(IdentityKey.LoginVerificationCode, user.Id));
 
             var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
             signInManager.AuthenticationScheme = IdentityConstants.BearerScheme;
@@ -206,7 +269,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             {
                 var memoryCache = sp.GetRequiredService<IMemoryCache>();
 
-                var getVerificationCode = memoryCache.Get<VerificationStoreModel>($"{user.Id}-VerificationCode");
+                var getVerificationCode = memoryCache.Get<VerificationStoreModel>(string.Format(IdentityKey.LoginVerificationCode, user.Id));
                 if (getVerificationCode != null)
                 {
                     if (getVerificationCode.ExpireTime > DateTime.UtcNow)
@@ -218,7 +281,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
 
                 var smsService = sp.GetRequiredService<ISmsService>();
 
-                await SendConfirmationMobileAsync(user, userManager, smsService, phoneNumber, memoryCache);
+                await SendConfirmationMobileAsync(string.Format(IdentityKey.LoginVerificationCode, user.Id), user, userManager, smsService, phoneNumber, memoryCache);
 
                 return TypedResults.Ok(new SendVerificationCodeResponse { TimeToExpire = 120, CodeLength = code.Length });
             }
@@ -393,17 +456,25 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
             return TypedResults.Empty;
         });
 
-        async Task SendConfirmationMobileAsync(TUser user, UserManager<TUser> userManager, ISmsService smsService, string mobile, IMemoryCache memoryCache, string password = "", bool isChange = false)
+        async Task<VerificationResponse> SendConfirmationMobileAsync(string key, TUser user, UserManager<TUser> userManager, ISmsService smsService, string mobile, IMemoryCache memoryCache, string password = "", bool isChange = false)
         {
-            string code = GenerateVerificationCode();
-
-            memoryCache.Set($"{user.Id}-VerificationCode", new VerificationStoreModel { PhoneNumber = user.PhoneNumber, ExpireTime = DateTime.UtcNow.AddSeconds(120), VerificationCode = code, Password = password }, TimeSpan.FromSeconds(120));
-
-            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+            if (memoryCache.TryGetValue<VerificationStoreModel>(key, out var verificationStoreModel))
             {
-                return;
+                return new VerificationResponse { CodeLength = verificationStoreModel.Token.Length, TimeToExpire = (int)(verificationStoreModel.ExpireTime - DateTime.UtcNow).TotalSeconds };
             }
-            await smsService.SendVerificationCodeAsync(mobile, code);
+            else
+            {
+                string code = GenerateVerificationCode();
+
+                memoryCache.Set(key, new VerificationStoreModel { PhoneNumber = user.PhoneNumber, ExpireTime = DateTime.UtcNow.AddSeconds(120), VerificationCode = code, Password = password }, TimeSpan.FromSeconds(120));
+
+                if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+                {
+                    await smsService.SendVerificationCodeAsync(mobile, code);
+                }
+
+                return new VerificationResponse { CodeLength = code.Length, TimeToExpire = 120 };
+            }
         }
 
         panelGroup.MapPost("/forgotPassword", async Task<Results<Ok<SendVerificationCodeResponse>, ValidationProblem>>
