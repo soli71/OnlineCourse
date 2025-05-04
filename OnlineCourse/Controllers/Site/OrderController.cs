@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Client;
 using OnlineCourse.Carts;
 using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Panel;
@@ -75,12 +76,15 @@ public class OrderController : BaseController
 
         var addressId = createOrderRequestDto.AddressId == default || createOrderRequestDto.AddressId == null ? default : createOrderRequestDto.AddressId;
 
-        if (cart.CartItems.Any(c => c.Product as PhysicalProduct != null && (addressId == default)))
-            return BadRequestB("سبد خرید شما شامل محصول فیزیکی می باشد. برای خرید محصول فیزیکی انتخاب ادرس الزامی می باشد");
+        if (cart.CartItems.Any(c => c.Product as PhysicalProduct != null))
+        {
+            if (addressId == default)
+                return BadRequestB("سبد خرید شما شامل محصول فیزیکی می باشد. برای خرید محصول فیزیکی انتخاب ادرس الزامی می باشد");
 
-        var existUserAddress = _context.UserAddresses.Any(c => c.Id == addressId && c.UserId == userId);
-        if (!existUserAddress)
-            return BadRequestB("آدرس کاربر ناصحیح است");
+            var existUserAddress = _context.UserAddresses.Any(c => c.Id == addressId && c.UserId == userId);
+            if (!existUserAddress)
+                return BadRequestB("آدرس کاربر ناصحیح است");
+        }
         decimal totalPrice = 0;
         foreach (var ci in cart.CartItems)
         {
@@ -89,10 +93,18 @@ public class OrderController : BaseController
             switch (product)
             {
                 case Course course:
+
                     if (!course.IsPublish)
                         return BadRequestB($"دوره '{course.Name}' در دسترس نیست");
                     if (!await _courseCapacityService.ExistCourseCapacityAsync(course.Id))
                         return BadRequestB($"ظرفیت دوره '{course.Name}' تکمیل می باشد");
+
+                    var existCourseForUser = _context.Orders
+                        .Include(o => o.OrderDetails)
+                        .ThenInclude(od => od.Product)
+                        .Any(o => o.UserId == userId && o.OrderDetails.Any(od => od.ProductId == course.Id));
+                    if (existCourseForUser)
+                        return BadRequestB($"شما قبلا  دوره {course.Name} را خریداری کرده اید");
 
                     totalPrice += course.Price * ci.Quantity;
                     break;
@@ -128,7 +140,7 @@ public class OrderController : BaseController
                 ReceiverName = createOrderRequestDto.ReceiverName,
                 ReceiverPhoneNumber = createOrderRequestDto.ReceiverPhoneNumber,
                 Description = createOrderRequestDto.Description,
-                AddressId = int.Parse(addressId.ToString()),
+                AddressId = addressId is null ? null : int.Parse(addressId.ToString()),
                 OrderCode = $"OC-{seq}",
                 OrderDetails = cart.CartItems.Where(c => !c.IsDelete && c.Quantity >= 0).Select(ci => new OrderDetails
                 {
@@ -195,6 +207,59 @@ public class OrderController : BaseController
 
         return OkB(orders);
     }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+        var order = _context.Orders.Where(c => c.Id == id && c.UserId == userId)
+            .Include(c => c.Address)
+            .Include(c => c.OrderDetails).ThenInclude(c => c.Product).FirstOrDefault();
+
+        if (order is null)
+            return NotFoundB("سفارش یافت نشد");
+
+        GetOrderResponse getOrderResponse = null;
+        GetOrderCourseResponse getOrderCourseResponse = null;
+        List<GetOrderPhysicalProductResponse> getOrderPhysicalProductResponse = new();
+        foreach (var orderDetail in order.OrderDetails)
+        {
+            if (orderDetail.Product is Course course)
+            {
+                var license = _context.Licenses.FirstOrDefault(c => c.OrderDetailId == orderDetail.Id && c.UserId == userId);
+                getOrderCourseResponse = new GetOrderCourseResponse
+                {
+                    CourseName = course.Name,
+                    LicenseKey = license?.Key is null ? order.Status != OrderStatus.Paid ? "در حال حاضر کد لایسنس برای این دوره صادر نشده است" : "  کد لایسنس صادر شده است لطفا با پشتیبانی در تماس باشید" : license.Key
+                };
+            }
+            if (orderDetail.Product is PhysicalProduct physicalProduct)
+            {
+                getOrderPhysicalProductResponse.Add(new GetOrderPhysicalProductResponse
+                {
+                    ProductName = physicalProduct.Name,
+                    Address = order.Address?.Address,
+                    PostalCode = order.Address?.PostalCode,
+                    Quantity = orderDetail.Quantity,
+                    UnitPrice = orderDetail.UnitPrice
+                });
+            }
+        }
+        getOrderResponse = new GetOrderResponse
+        {
+            OrderCode = order.OrderCode,
+            OrderDate = order.OrderDate.ToPersianDateTime(),
+            TotalPrice = order.TotalPrice,
+            Status = order.Status.GetDisplayValue(),
+            ReceiverName = order.ReceiverName,
+            ReceiverPhoneNumber = order.ReceiverPhoneNumber,
+            Description = order.Description,
+            Course = getOrderCourseResponse,
+            PhysicalProducts = getOrderPhysicalProductResponse
+        };
+        return OkB(getOrderResponse);
+    }
 }
 
 public record GetOrderSiteDto(
@@ -212,3 +277,31 @@ public record GetOrderDetailSiteDto(
     int Quantity,
     decimal UnitPrice
 );
+
+public class GetOrderResponse
+{
+    public string OrderCode { get; set; }
+    public string OrderDate { get; set; }
+    public decimal TotalPrice { get; set; }
+    public string Status { get; set; }
+    public string ReceiverName { get; set; }
+    public string ReceiverPhoneNumber { get; set; }
+    public string Description { get; set; }
+    public GetOrderCourseResponse Course { get; set; }
+    public List<GetOrderPhysicalProductResponse> PhysicalProducts { get; set; }
+}
+
+public class GetOrderCourseResponse
+{
+    public string CourseName { get; set; }
+    public string LicenseKey { get; set; }
+}
+
+public class GetOrderPhysicalProductResponse
+{
+    public string ProductName { get; set; }
+    public string Address { get; set; }
+    public string PostalCode { get; set; }
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}

@@ -12,6 +12,7 @@ using OnlineCourse.Contexts;
 using OnlineCourse.Controllers.Site;
 using OnlineCourse.Identity;
 using OnlineCourse.Identity.Entities;
+using OnlineCourse.Orders.Services;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
 using System.Net.Http;
@@ -32,6 +33,7 @@ builder.Services.AddControllers();
 //builder.Services.AddOpenApi();
 builder.Services.AddScoped<ISmsService, SmsService>();
 builder.Services.AddScoped<PhysicalProductService>();
+builder.Services.AddScoped<LicenseService>();
 builder.Services.AddSwaggerGen(c =>
 {
     // 1. دو سند مجزا: site و panel

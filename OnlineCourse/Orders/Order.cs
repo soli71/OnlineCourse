@@ -41,7 +41,7 @@ public class Order
     public string Description { get; set; }
     public string TrackingCode { get; set; }
     public UserAddress Address { get; set; }
-    public int AddressId { get; set; }
+    public int? AddressId { get; set; }
     public List<OrderDetails> OrderDetails { get; set; }
 }
 

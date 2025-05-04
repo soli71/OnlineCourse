@@ -177,7 +177,7 @@ public class CartController : BaseController
                     cart.CartItems.Add(new CartItem
                     {
                         ProductId = product.Id,
-                        Quantity = createCartDto.Quantity,
+                        Quantity = 1,
                         Price = product.Price
                     });
                 }

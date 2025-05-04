@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using OnlineCourse.Contexts;
 using OnlineCourse.Extensions;
+using OnlineCourse.Identity.Entities;
 using OnlineCourse.Orders;
+using OnlineCourse.Orders.Services;
 using OnlineCourse.Products.Entities;
 using OnlineCourse.Products.Services;
 using OnlineCourse.Services;
@@ -94,17 +96,21 @@ public class OrderController : BaseController
     private readonly ISmsService _smsService;
     private readonly PhysicalProductService _physicalProductService;
     private readonly object _lock = new();
+    private readonly LicenseService _licenseService;
+    private List<Tuple<User, Course, int>> haveToGetLicense = new();
 
     public OrderController(
         ApplicationDbContext context,
         ISpotPlayerService spotPlayerService,
         ISmsService smsService,
-        PhysicalProductService physicalProductService)
+        PhysicalProductService physicalProductService,
+        LicenseService licenseService)
     {
         _context = context;
         _spotPlayerService = spotPlayerService;
         _smsService = smsService;
         _physicalProductService = physicalProductService;
+        _licenseService = licenseService;
     }
 
     [HttpGet]
@@ -241,28 +247,8 @@ public class OrderController : BaseController
                                 return NotFoundB("شناسه اسپات پلیر دوره یافت نشد");
 
                             var user = _context.Users.Find(order.UserId);
-                            var spotResult = _spotPlayerService
-                                .GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, true).Result;
+                            haveToGetLicense.Add(new Tuple<User, Course, int>(user, course, od.Id));
 
-                            if (spotResult.IsSuccess)
-                            {
-                                var licenseEntry = new License
-                                {
-                                    Key = spotResult.Result.Key,
-                                    UserId = order.UserId,
-                                    OrderDetailId = od.Id,
-                                    IssuedDate = DateTime.UtcNow,
-                                    ExpirationDate = null,
-                                    Status = LicenseStatus.Active
-                                };
-                                _context.Licenses.Add(licenseEntry);
-                            }
-                            else
-                            {
-                                od.Description += $" {spotResult.Description}";
-                            }
-
-                            _smsService.SendCoursePaidSuccessfully(user.PhoneNumber, course.Name).Wait();
                             break;
 
                         case PhysicalProduct product:
@@ -278,9 +264,14 @@ public class OrderController : BaseController
                         default:
                             return BadRequestB("نوع محصول ناشناخته است");
                     }
-
-                    _context.SaveChanges();
                 }
+            }
+
+            foreach (var item in haveToGetLicense)
+            {
+                bool isTest = bool.TryParse(Environment.GetEnvironmentVariable("SpotPlayerTestEvn"), out var test) && true;
+                _licenseService.GenerateLicenseAsync(
+                               item.Item2, item.Item1, item.Item2.SpotPlayerCourseId, item.Item3, isTest).Wait();
             }
 
             order.Status = changeStatusDto.Status;

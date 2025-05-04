@@ -16,6 +16,7 @@
         "RefreshExpireTokenTime": "72576000",
         "AdminPhoneNumber": "09354663872",
         "SpotPlayerApiKey": "Z1xTKstMxyoJpPnIldOj6QeojwYwgE3S",
+        " ": "true",
         "DOMAIN": "http://localhost:2020,http://localhost:3000"
       },
       "dotnetRunMessages": true,

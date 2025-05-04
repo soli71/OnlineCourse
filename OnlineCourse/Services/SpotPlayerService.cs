@@ -86,7 +86,7 @@ public class SpotPlayerService : ISpotPlayerService
             return new SpotPlayerResponse
             {
                 IsSuccess = false,
-                Description = $"Error: {response}"
+                Description = $"Error: {await response.Content.ReadAsStringAsync()}"
             };
         }
     }

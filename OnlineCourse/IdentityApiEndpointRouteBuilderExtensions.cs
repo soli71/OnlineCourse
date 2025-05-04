@@ -460,7 +460,7 @@ public static partial class IdentityApiEndpointRouteBuilderExtensions
         {
             if (memoryCache.TryGetValue<VerificationStoreModel>(key, out var verificationStoreModel))
             {
-                return new VerificationResponse { CodeLength = verificationStoreModel.Token.Length, TimeToExpire = (int)(verificationStoreModel.ExpireTime - DateTime.UtcNow).TotalSeconds };
+                return new VerificationResponse { CodeLength = verificationStoreModel.VerificationCode.Length, TimeToExpire = (int)(verificationStoreModel.ExpireTime - DateTime.UtcNow).TotalSeconds };
             }
             else
             {
