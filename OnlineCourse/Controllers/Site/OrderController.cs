@@ -40,13 +40,20 @@ public class OrderController : BaseController
     private readonly UserManager<User> _userManager;
     private readonly ISmsService _smsService;
     private readonly object _lock = new();
+    private readonly IMinioService _minioService;
 
-    public OrderController(ApplicationDbContext context, ICourseCapacityService courseCapacityService, ISmsService smsService, UserManager<User> userManager)
+    public OrderController(
+        ApplicationDbContext context,
+        ICourseCapacityService courseCapacityService,
+        ISmsService smsService,
+        UserManager<User> userManager,
+        IMinioService minioService)
     {
         _context = context;
         _courseCapacityService = courseCapacityService;
         _smsService = smsService;
         _userManager = userManager;
+        _minioService = minioService;
     }
 
     [HttpPost]
@@ -231,6 +238,8 @@ public class OrderController : BaseController
                 getOrderCourseResponse = new GetOrderCourseResponse
                 {
                     CourseName = course.Name,
+                    Price = orderDetail.UnitPrice,
+                    ImageUrl = await _minioService.GetFileUrlAsync(MinioKey.Course, orderDetail.Product.DefaultImageFileName),
                     LicenseKey = license?.Key is null ? order.Status != OrderStatus.Paid ? "در حال حاضر کد لایسنس برای این دوره صادر نشده است" : "  کد لایسنس صادر شده است لطفا با پشتیبانی در تماس باشید" : license.Key
                 };
             }
@@ -239,9 +248,8 @@ public class OrderController : BaseController
                 getOrderPhysicalProductResponse.Add(new GetOrderPhysicalProductResponse
                 {
                     ProductName = physicalProduct.Name,
-                    Address = order.Address?.Address,
-                    PostalCode = order.Address?.PostalCode,
                     Quantity = orderDetail.Quantity,
+                    ImageUrl = await _minioService.GetFileUrlAsync(MinioKey.PhysicalProduct, orderDetail.Product.DefaultImageFileName),
                     UnitPrice = orderDetail.UnitPrice
                 });
             }
@@ -256,6 +264,8 @@ public class OrderController : BaseController
             ReceiverPhoneNumber = order.ReceiverPhoneNumber,
             Description = order.Description,
             Course = getOrderCourseResponse,
+            Address = order.Address?.Address,
+            PostalCode = order.Address?.PostalCode,
             PhysicalProducts = getOrderPhysicalProductResponse
         };
         return OkB(getOrderResponse);
@@ -287,6 +297,8 @@ public class GetOrderResponse
     public string ReceiverName { get; set; }
     public string ReceiverPhoneNumber { get; set; }
     public string Description { get; set; }
+    public string Address { get; set; }
+    public string PostalCode { get; set; }
     public GetOrderCourseResponse Course { get; set; }
     public List<GetOrderPhysicalProductResponse> PhysicalProducts { get; set; }
 }
@@ -295,13 +307,15 @@ public class GetOrderCourseResponse
 {
     public string CourseName { get; set; }
     public string LicenseKey { get; set; }
+    public decimal Price { get; set; }
+    public string ImageUrl { get; set; }
 }
 
 public class GetOrderPhysicalProductResponse
 {
     public string ProductName { get; set; }
-    public string Address { get; set; }
-    public string PostalCode { get; set; }
+
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public string ImageUrl { get; set; }
 }
