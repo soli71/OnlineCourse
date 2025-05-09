@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -29,6 +30,20 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+
+// 1. فعال‌سازی خواندن هدرهای فوروارد
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    // هدرهای مدنظر
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+    // اگر می‌خواهید همهٔ پروکسی‌ها رو قبول کنید (اختیاری)
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+
+    // در صورت تمایل می‌توانید IP سرور Next.js رو به عنوان پروکسی معتبر اضافه کنید:
+    // options.KnownProxies.Add(IPAddress.Parse("10.0.0.5"));
+});
 
 //builder.Services.AddOpenApi();
 builder.Services.AddScoped<ISmsService, SmsService>();
@@ -205,6 +220,8 @@ if (enableRateLimit)
 builder.Services.AddOutputCache();
 builder.Services.AddHttpClient();
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 app.Use(async (context, next) =>
 {
