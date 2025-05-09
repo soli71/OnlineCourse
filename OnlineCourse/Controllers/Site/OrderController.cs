@@ -108,7 +108,7 @@ public class OrderController : BaseController
                     var existCourseForUser = _context.Orders
                         .Include(o => o.OrderDetails)
                         .ThenInclude(od => od.Product)
-                        .Any(o => o.UserId == userId && o.OrderDetails.Any(od => od.ProductId == course.Id));
+                        .Any(o => o.UserId == userId && o.OrderDetails.Any(od => od.ProductId == course.Id && od.Order.Status == OrderStatus.Paid));
                     if (existCourseForUser)
                         return BadRequestB($"شما قبلا  دوره {course.Name} را خریداری کرده اید");
 

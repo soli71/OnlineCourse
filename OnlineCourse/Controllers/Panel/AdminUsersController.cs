@@ -169,6 +169,11 @@ public class AdminUsersController : BaseController
         {
             return BadRequestB("");
         }
+        var roleResult = await _userManager.AddToRoleAsync(user, "Admin");
+        if (!roleResult.Succeeded)
+        {
+            return BadRequestB("ایجاد نقش کاربری موفقیت آمیز نبود");
+        }
 
         return OkB();
     }

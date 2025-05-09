@@ -132,7 +132,7 @@ public class CartController : BaseController
             {
                 var user = HttpContext.User;
                 int.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
-                var existUserThisCourse = _context.Orders.Any(c => c.UserId == userId && c.OrderDetails.Any(c => c.ProductId == createCartDto.ProductId && c.Product is Course));
+                var existUserThisCourse = _context.Orders.Any(c => c.UserId == userId && c.OrderDetails.Any(c => c.ProductId == createCartDto.ProductId && c.Product is Course) && c.Status == Orders.OrderStatus.Paid);
                 if (existUserThisCourse)
                     return BadRequestB("شما قبلا این دوره را خریداری کرده اید");
 
