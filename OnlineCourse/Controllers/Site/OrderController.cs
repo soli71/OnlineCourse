@@ -172,11 +172,11 @@ public class OrderController : BaseController
         await _smsService.SendCreateOrderMessageForUser(userForMessage.PhoneNumber, order.OrderCode);
 
         var html = $@"
-            <div style=""background-color: #f0f8ff; border: 2px solid #007acc; border-radius: 8px; padding: 20px; max-width: 400px; font-family: 'Segoe UI', Tahoma, sans-serif; color: #333;"">
-                <h2 style=""color: #007acc; margin: 0 0 10px;"">سفارش شما با موفقیت ثبت شد!</h2>
-                <p style=""color: #1a73e8; font-weight: bold; margin: 0 0 8px;"">شماره‌ی سفارش: #{order.OrderCode}</p>
-                <p style=""color: #2e7d32; margin: 0 0 8px;"">ممنونیم از خرید شما 🎉</p>
-                <p style=""color: #d84315; font-style: italic; margin: 0;"">تیم پشتیبانی ما در اسرع وقت با شما تماس خواهند گرفت.</p>
+            <div style={{""background-color: #f0f8ff; border: 2px solid #007acc; border-radius: 8px; padding: 20px; max-width: 400px; font-family: 'Segoe UI', Tahoma, sans-serif; color: #333;""}}>
+                <h2 style={{""color: #007acc; margin: 0 0 10px;""}}>سفارش شما با موفقیت ثبت شد!</h2>
+                <p style={{""color: #1a73e8; font-weight: bold; margin: 0 0 8px;""}}>شماره‌ی سفارش: #{order.OrderCode}</p>
+                <p style={{""color: #2e7d32; margin: 0 0 8px;""}}>ممنونیم از خرید شما 🎉</p>
+                <p style={{""color: #d84315; font-style: italic; margin: 0;""}}>تیم پشتیبانی ما در اسرع وقت با شما تماس خواهند گرفت.</p>
             </div>";
         return Content(html, "text/html; charset=utf-8");
     }
