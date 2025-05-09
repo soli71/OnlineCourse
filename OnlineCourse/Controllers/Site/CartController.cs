@@ -329,7 +329,7 @@ public class CartController : BaseController
         {
             CourseCartListModel = courseList,
             PhysicalProductCartListModel = physicalProductList,
-            TotalPrice = cart.CartItems.Where(x => !x.IsDelete).Sum(x => x.Price * x.Quantity),
+            TotalPrice = courseList.TotalPrice + physicalProductList.TotalPrice,
             Discount = 0
         };
         return OkB(dto);
