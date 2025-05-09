@@ -210,6 +210,26 @@ app.Use(async (context, next) =>
 {
     try
     {
+        try
+        {
+            string loadDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Visit");
+            Directory.CreateDirectory(loadDirectory);
+            string logFile = Path.Combine(loadDirectory, $"Visit_{DateTime.Now:yyyyMMdd}.log");
+            string requestPath = context.Request.Path.ToString();
+            string requestMethod = context.Request.Method.ToString();
+            var ip = context.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+            var userAgent = context.Request.Headers["User-Agent"].ToString() ?? "Unknown User Agent";
+            var referer = context.Request.Headers["Referer"].ToString() ?? "Unknown Referer";
+
+            var message = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Request  : {requestMethod} {requestPath} \r\n" +
+                          $"User Agent: {userAgent}\r\n" +
+                          $"Referer: {referer}\r\n" +
+                          $"IP : {ip}\r\n";
+
+            File.AppendAllTextAsync(logFile, message);
+        }
+        catch { }
+        ;
         await next(context);
     }
     catch (Exception ex)
