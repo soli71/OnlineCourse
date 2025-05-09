@@ -177,7 +177,7 @@ public class OrderController : BaseController
         //send sms to user
         await _smsService.SendCreateOrderMessageForUser(userForMessage.PhoneNumber, order.OrderCode);
 
-        return OkB(new { OrderCode = order.OrderCode });
+        return OkB(new RegOrderModel { OrderCode = order.OrderCode });
     }
 
     private int GetNextOrderCode()
