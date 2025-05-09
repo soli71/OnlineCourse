@@ -10,8 +10,9 @@ namespace OnlineCourse.Orders.Services
     {
         public async Task GenerateLicenseAsync(Course course, User user, string spotPlayerCourseId, int orderDetailId, bool isTest)
         {
+            bool.TryParse(Environment.GetEnvironmentVariable("SpotPlayerTestMode"), out bool isTestMode);
             var spotResult = spotPlayerService
-                               .GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, true).Result;
+                               .GetLicenseAsync(course.SpotPlayerCourseId, user.UserName, isTestMode).Result;
 
             if (spotResult.IsSuccess)
             {
