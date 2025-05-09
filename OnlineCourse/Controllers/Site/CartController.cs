@@ -132,6 +132,10 @@ public class CartController : BaseController
             {
                 var user = HttpContext.User;
                 int.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
+                var existUserThisCourse = _context.Orders.Any(c => c.UserId == userId && c.OrderDetails.Any(c => c.ProductId == createCartDto.ProductId && c.Product is Course));
+                if (existUserThisCourse)
+                    return BadRequestB("شما قبلا این دوره را خریداری کرده اید");
+
                 func = x => x.UserId == userId && x.Status == CartStatus.Active;
             }
         }
@@ -273,7 +277,7 @@ public class CartController : BaseController
                         Image = await _minioService.GetFileUrlAsync(MinioKey.Course, crs.DefaultImageFileName),
                         Message = message,
                         Quantity = ci.Quantity,
-                        Price = ci.Price
+                        Price = ci.Product.Price
                     });
 
                 if (!string.IsNullOrEmpty(message))
@@ -308,7 +312,7 @@ public class CartController : BaseController
                         Image = await _minioService.GetFileUrlAsync(MinioKey.PhysicalProduct, pp.DefaultImageFileName),
                         Message = message,
                         Quantity = ci.Quantity,
-                        Price = ci.Price,
+                        Price = ci.Product.Price,
                         StockQuantity = productStockQuantity
                     });
             }
