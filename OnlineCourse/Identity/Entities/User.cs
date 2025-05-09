@@ -12,6 +12,7 @@ public class User : IdentityUser<int>
     public bool Inactive { get; set; }
     public ICollection<License> Licenses { get; set; }
     public ICollection<UserAddress> UserAddresses { get; set; }
+    public ICollection<OrderStatusHistory> OrderStatusHistories { get; set; }
 }
 
 public enum UserType

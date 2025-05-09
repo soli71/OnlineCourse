@@ -300,6 +300,23 @@ public class OrderController : BaseController
         return OkB();
     }
 
+    [HttpGet("{id}/histories")]
+    public IActionResult StatusHistories(int id)
+    {
+        var orderHistories = _context.OrderStatusHistories
+            .Include(c => c.User)
+            .Where(c => c.OrderId == id)
+            .OrderByDescending(c => c.Date)
+            .Select(c => new
+            {
+                Status = c.Status.GetDisplayValue(),
+                User = c.User.UserName,
+                Date = c.Date.ToPersianDateTime(),
+                Description = c.Description
+            }).ToList();
+        return OkB(orderHistories);
+    }
+
     [HttpGet("status")]
     [OutputCache(Duration = 60, Tags = new[] { CacheTag.General })]
     public IActionResult GetOrderStatus()
