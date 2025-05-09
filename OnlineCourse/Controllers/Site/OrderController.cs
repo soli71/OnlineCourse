@@ -19,6 +19,11 @@ using System.Security.Claims;
 
 namespace OnlineCourse.Controllers.Site;
 
+public class RegOrderModel
+{
+    public string OrderCode { get; set; }
+}
+
 public class CreateOrderRequestModel
 {
     public string CartId { get; set; }
@@ -56,6 +61,7 @@ public class OrderController : BaseController
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(ApiResult<RegOrderModel>), 200)]
     public async Task<IActionResult> CreateOrder(CreateOrderRequestModel createOrderRequestDto)
     {
         Expression<Func<Cart, bool>> predict = c => c.UserId == 33333333333;
