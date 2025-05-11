@@ -27,7 +27,8 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int, UserClaim
     public DbSet<City> Cities { get; set; }
     public DbSet<Province> Provinces { get; set; }
     public DbSet<UserAddress> UserAddresses { get; set; }
-
+    public DbSet<DiscountCode> DiscountCodes { get; set; }
+    public DbSet<DiscountUsage> DiscountUsages { get; set; }
     public DbSet<SiteSetting> SiteSettings { get; set; }
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)

@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Discounts\Services\" />
     <Folder Include="wwwroot\" />
   </ItemGroup>
 

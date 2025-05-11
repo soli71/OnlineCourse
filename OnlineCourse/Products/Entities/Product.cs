@@ -8,6 +8,9 @@ public class Product : SEO, ICreatedAudit, IModifiedAudit
     public string Name { get; set; }
     public string Description { get; set; }
     public decimal Price { get; set; }
+    public decimal? DiscountPrice { get; set; }
+    public DateTime? DiscountStartDate { get; set; }
+    public DateTime? DiscountEndDate { get; set; }
     public string DefaultImageFileName { get; set; }
     public bool IsPublish { get; set; }
     public DateTime CreatedAt { get; set; }

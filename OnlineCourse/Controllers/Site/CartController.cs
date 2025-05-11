@@ -43,6 +43,7 @@ public class CourseCartItemModel
 {
     public string Name { get; set; }
     public decimal Price { get; set; }
+    public decimal DiscountAmount { get; set; }
     public int ProductId { get; set; }
     public string Image { get; set; }
     public string Message { get; set; }
@@ -56,7 +57,8 @@ public class CourseCartListModel : ICartItemCount
     public int ProductItemCount => CourseCartItems.Count;
     public int ProductCount => CourseCartItems.Sum(c => c.Quantity);
 
-    public decimal TotalPrice => CourseCartItems.Sum(c => c.Quantity * c.Price);
+    public decimal TotalPrice => CourseCartItems.Sum(c => (c.Quantity * c.Price));
+    public decimal ForPay => TotalPrice - CourseCartItems.Sum(c => c.DiscountAmount);
 }
 
 public class ProductCartItemModel
@@ -67,6 +69,7 @@ public class ProductCartItemModel
     public string Image { get; set; }
     public string Message { get; set; }
     public int Quantity { get; set; }
+    public decimal DiscountAmount { get; set; }
     public int StockQuantity { get; set; }
 }
 
@@ -76,6 +79,7 @@ public class PhysicalProductCartListModel : ICartItemCount
     public int ProductItemCount => ProductCartItems.Count;
     public decimal TotalPrice => ProductCartItems.Sum(c => c.Quantity * c.Price);
     public int ProductCount => ProductCartItems.Sum(c => c.Quantity);
+    public decimal ForPay => TotalPrice - ProductCartItems.Sum(c => c.DiscountAmount);
 }
 
 public class CartListModel
@@ -87,6 +91,7 @@ public class CartListModel
     public decimal TotalPrice { get; set; }
 
     public decimal Discount { get; set; }
+    public decimal ForPay => TotalPrice - Discount;
 }
 
 [ApiController]
@@ -155,6 +160,7 @@ public class CartController : BaseController
                     {
                         ProductId = createCartDto.ProductId,
                         Price = product.Price,
+                        DiscountAmount=0,
                         Quantity=createCartDto.Quantity
                     }
                 },
@@ -277,7 +283,8 @@ public class CartController : BaseController
                         Image = await _minioService.GetFileUrlAsync(MinioKey.Course, crs.DefaultImageFileName),
                         Message = message,
                         Quantity = ci.Quantity,
-                        Price = ci.Product.Price
+                        Price = ci.Product.Price,
+                        DiscountAmount = ci.DiscountAmount
                     });
 
                 if (!string.IsNullOrEmpty(message))
@@ -313,7 +320,8 @@ public class CartController : BaseController
                         Message = message,
                         Quantity = ci.Quantity,
                         Price = ci.Product.Price,
-                        StockQuantity = productStockQuantity
+                        StockQuantity = productStockQuantity,
+                        DiscountAmount = ci.DiscountAmount
                     });
             }
         }
@@ -330,7 +338,7 @@ public class CartController : BaseController
             CourseCartListModel = courseList,
             PhysicalProductCartListModel = physicalProductList,
             TotalPrice = courseList.TotalPrice + physicalProductList.TotalPrice,
-            Discount = 0
+            Discount = cart.DiscountAmount,
         };
         return OkB(dto);
     }

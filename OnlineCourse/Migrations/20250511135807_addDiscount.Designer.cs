@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OnlineCourse.Contexts;
 
@@ -11,9 +12,11 @@ using OnlineCourse.Contexts;
 namespace OnlineCourse.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250511135807_addDiscount")]
+    partial class addDiscount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -86,10 +89,9 @@ namespace OnlineCourse.Migrations
 
                     b.HasIndex("DiscountCodeId");
 
-                    b.HasIndex("OrderId")
-                        .IsUnique();
+                    b.HasIndex("OrderId");
 
-                    b.ToTable("DiscountUsages");
+                    b.ToTable("DiscountUsage");
                 });
 
             modelBuilder.Entity("OnlineCourse.Blogs.Entities.Blog", b =>
@@ -660,12 +662,6 @@ namespace OnlineCourse.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("ForPay")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("OrderCode")
                         .HasColumnType("nvarchar(max)");
 
@@ -950,8 +946,8 @@ namespace OnlineCourse.Migrations
                         .IsRequired();
 
                     b.HasOne("OnlineCourse.Orders.Order", "Order")
-                        .WithOne("DiscountUsage")
-                        .HasForeignKey("DiscountUsage", "OrderId")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1232,8 +1228,6 @@ namespace OnlineCourse.Migrations
 
             modelBuilder.Entity("OnlineCourse.Orders.Order", b =>
                 {
-                    b.Navigation("DiscountUsage");
-
                     b.Navigation("OrderDetails");
                 });
 

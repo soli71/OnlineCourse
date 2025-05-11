@@ -13,8 +13,19 @@ public class OrderStatusHistory
     public OrderStatus Status { get; set; }
     public DateTime Date { get; set; }
     public int UserId { get; set; }
-    public string Description { get; set; }
     public User User { get; set; }
+    public string Description { get; set; }
+}
+
+public class OrderStatusHistoryConfig : IEntityTypeConfiguration<OrderStatusHistory>
+{
+    public void Configure(EntityTypeBuilder<OrderStatusHistory> builder)
+    {
+        builder.HasOne(c => c.User)
+            .WithMany()
+            .HasForeignKey(c => c.UserId)
+            .OnDelete(DeleteBehavior.ClientNoAction);
+    }
 }
 
 public class OrderConfig : IEntityTypeConfiguration<Order>
@@ -34,6 +45,8 @@ public class Order
     public int UserId { get; set; }
     public User User { get; set; }
     public decimal TotalPrice { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal ForPay { get; set; }
     public DateTime OrderDate { get; set; }
     public string OrderCode { get; set; }
     public OrderStatus Status { get; set; }
@@ -44,6 +57,7 @@ public class Order
     public UserAddress Address { get; set; }
     public int? AddressId { get; set; }
     public List<OrderDetails> OrderDetails { get; set; }
+    public DiscountUsage DiscountUsage { get; set; }
 }
 
 public enum OrderStatus

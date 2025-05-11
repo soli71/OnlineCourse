@@ -37,6 +37,7 @@ public class CreateOrderRequestModel
 
 [Route("api/site/[controller]")]
 [ApiController]
+[Authorize(Roles = "User")]
 public class OrderController : BaseController
 {
     private readonly ApplicationDbContext _context;
@@ -79,6 +80,7 @@ public class OrderController : BaseController
             predict = c => c.Id == cartId && c.Status == CartStatus.Active;
         }
         var cart = await _context.Carts
+            .Include(c => c.DiscountCode)
             .Include(x => x.CartItems)
             .ThenInclude(x => x.Product)
             .FirstOrDefaultAsync(predict);
@@ -147,6 +149,8 @@ public class OrderController : BaseController
             {
                 UserId = userId,
                 TotalPrice = totalPrice,
+                DiscountAmount = cart.DiscountAmount,
+                ForPay = totalPrice - cart.DiscountAmount,
                 OrderDate = DateTime.UtcNow,
                 Status = OrderStatus.Pending,
                 ReceiverName = createOrderRequestDto.ReceiverName,
@@ -161,7 +165,20 @@ public class OrderController : BaseController
                     UnitPrice = ci.Price
                 }).ToList()
             };
+            if (cart.DiscountCode is not null)
+            {
+                var discountCode = _context.DiscountCodes.AsNoTracking().FirstOrDefault(c => c.Code == cart.DiscountCode.Code);
+                if (discountCode != null)
+                {
+                    order.DiscountUsage = new DiscountUsage
+                    {
+                        DiscountCodeId = discountCode.Id,
+                        UsedAt = DateTime.UtcNow
+                    };
+                }
+            }
             _context.Orders.Add(order);
+
             _context.SaveChanges();
         }
         //}
