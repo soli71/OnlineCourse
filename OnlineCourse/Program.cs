@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication.BearerToken;
+﻿using Azure;
+using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -256,6 +257,7 @@ app.Use(async (context, next) =>
         {
             var apiResult = new ApiResult(false, "شما مجاز به دسترسی به این بخش نیستید", null, 403);
             context.Response.ContentType = "application/json";
+            context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
             await context.Response.WriteAsync(JsonSerializer.Serialize(apiResult));
         }
     }
